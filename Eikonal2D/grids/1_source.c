@@ -15,8 +15,6 @@ int main(){
     int m = 200;
     double length = 1.0;
     double h = length/n;
-
-    // Number of random sources
     int nsources = 1;
 
     // Creating the grid
@@ -29,7 +27,7 @@ int main(){
     // Constant speed of 1
     eikonal_grid_set_speed_constant(g, 1.0);
     
-    // Generation of random sources
+    // Generation of the source
     int* src_i = (int *)malloc(nsources * sizeof(int));
     int* src_j = (int *)malloc(nsources * sizeof(int));
 

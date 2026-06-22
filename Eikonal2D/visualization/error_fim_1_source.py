@@ -93,7 +93,7 @@ def compute_error():
     plt.colorbar(im3, ax=axes[1])
 
     plt.tight_layout()
-    plt.savefig("fim_euclid_error.png", dpi=300, bbox_inches="tight")
+    plt.savefig("error_fim.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 

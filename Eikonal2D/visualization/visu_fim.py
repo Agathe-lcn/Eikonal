@@ -51,9 +51,9 @@ def visualize_fim():
     plt.figure(figsize=(10, 8))
 
     plt.pcolormesh(X, Y, matrix_display, shading='nearest', cmap='viridis')
-    plt.colorbar(label="Arrival Time")
-    plt.scatter(x_points, y_points, color='red', s=10, marker='*', label="Sources", edgecolors='black', linewidth=1)
-    plt.title("FIM - Vertical wall in the centrer \n Arrival time")
+    plt.colorbar()
+    plt.scatter(x_points, y_points, color='red', s=10, marker='.', label="Sources", edgecolors='red', linewidth=1)
+    plt.title("FIM-distance map")
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.legend()

@@ -1,55 +1,56 @@
+// Generates a 2D grid with five random sources with one wall
+// Saves the time matrix to a .txt file
+
 #include "../include/FIM2D.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <time.h>
 
 #define EPSILON 1e-12
 
 int main(){
-    // Paramètres
+    // Grid settings
     int n = 200;
     int m = 200;
     double length = 1.0;
     double h = length/n;
     int nsources = 5;
 
-    // Création de la grille
-    EikonalGrid* g = eikonal_grid_create(n,m,h);
+    // Creating the grid
+    EikonalGrid* g = eikonal_grid_create(n, m, h);
     if (!g){
-        printf("Erreur: impossible de créer la grille\n");
+        printf("Error: Unable to create the grid.\n");
         return 1;
     }
 
-    // vitesse cste = 1
+    // Constant speed of 1
     eikonal_grid_set_speed_constant(g, 1.0);
 
-    // mur vertical au centre
+    // Vertical wall in the center
     int wall_x = m/2;
     for (int i=0; i < n; i++){
         eikonal_grid_set_obstacle(g, i, wall_x);
     }
-    printf("mur vertical à la colonne %d\n", wall_x);
 
-    // sources aléatoires
-    srand(time(NULL));
-    int* src_i = (int*)malloc(nsources * sizeof(int));
-    int* src_j = (int*)malloc(nsources * sizeof(int));
-
+    // File for storing source information
     FILE* coord_file = fopen("coords_mesh.txt", "w");
     if (!coord_file){
-        printf("erreur: impossible de créer coord_mesh.txt\n");
-        free(src_i);
-        free(src_j);
+        printf("Error: Unable to create the coord_mesh.txt file.\n");
         eikonal_grid_free(g);
         return 1;
     }
+
+    // Generation of the random sources
+    srand(time(NULL));
+    int* src_i = (int*)malloc(nsources * sizeof(int));
+    int* src_j = (int*)malloc(nsources * sizeof(int));
 
     for (int s = 0; s < nsources; s++){
         src_i[s] = rand() % n;
         src_j[s] = rand() % m;
 
-        // éviter mettre source dans le mur
+        // Avoid placing the sources in the wall
         while (src_j[s] == wall_x)
             src_j[s] = rand() % m;
 
@@ -60,27 +61,12 @@ int main(){
 
     fclose(coord_file);
 
-    // exécution FIM
+    // Execution of FIM
     fim_solve(g, src_i, src_j, nsources, EPSILON);
 
-    // sauvegarde
-    FILE* mat_file = fopen("matrix_fim.txt", "w");
-    // AJOUTER ERREUR SI OUVRE PAS
-    for (int i=0; i<n; i++){
-        for (int j=0; j<m; j++){
-            int index = i*m+j;
-            double T = g->T[index];
+    eikonal_save_matrix(g, "matrix_fim.txt");
 
-            if (g->F[index] <= EIKONAL_EPS || T >= EIKONAL_INF /2.0)
-                fprintf(mat_file, "%.12f ", "inf");
-            else 
-                fprintf(mat_file, "%.12f ", T);
-        }
-        fprintf(mat_file, "\n");
-    }
-    fclose(mat_file);
-
-    //nettoyage
+    // Cleaning
     free(src_i);
     free(src_j);
     eikonal_grid_free(g);
