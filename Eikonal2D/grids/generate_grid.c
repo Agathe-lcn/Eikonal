@@ -1,49 +1,125 @@
 #include "../include/FIM2D.h"
 
-#include <math.h>
-#include <stdlib.h>
-#include <time.h>
-#include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Wall structure
-typedef struct{
-    int col_start;  // Start column
-    int col_end;    // End column
-    int row_start;  // Start row
-    int row_end;    // End row
-} Wall;
+#define EPSILON 1e-12
+#define MAX_LINE 1024
 
-// Parameter structure
+// Configuration structure
 typedef struct{
     int n;
     int m;
-    double length; 
+    double h;
+
     int nsources;
-    Wall* walls;    // Wall tables
-    int nwalls;     // Number of walls
-    int source_type;    // 0: random, 1: central, 2: sinusoidal, 3: circle, 4: diagonal, 5: horizontal, 6: vertical, 7: square
+    int* src_i;
+    int* src_j;
+
+    int nwalls;
+    int* wall_c1;   // Start column
+    int* wall_c2;   // End column
+    int* wall_r1;   // Start row
+    int* wall_r2;   // End row
 } Config;
 
-// Sources structure
-typedef struct{
-    int* i; // Row table
-    int* j; // Column table
-    int count;  // Number of sources
-} Sources;
+
+// Reading the configuration file
+Config read_config(const char* filename){
+    Config cfg = {};
+    FILE* file = fopen(filename, "r");
+    if (!file){
+        printf("Error: Unable to open %s\n", filename);
+        return cfg;
+    }
+
+    char line[MAX_LINE];
+    int section = 0;    // 0: none, 1: sources, 2: walls
+    int max_sources = 200;
+    int max_walls = 200;
+
+    // Allocations
+    cfg.src_i = (int*)malloc(max_sources * sizeof(int));
+    cfg.src_j = (int*)malloc(max_sources * sizeof(int));
+    cfg.wall_c1 = (int*)malloc(max_walls * sizeof(int));
+    cfg.wall_c2 = (int*)malloc(max_walls * sizeof(int));
+    cfg.wall_r1 = (int*)malloc(max_walls * sizeof(int));
+    cfg.wall_r2 = (int*)malloc(max_walls * sizeof(int));
+
+    while (fgets(line, MAX_LINE, file)){
+        // Ignore comments and empty lines
+        if (line[0] == '#' || line[0] == '\n')
+            continue;
+
+        // Delete the \n
+        line[strcspn(line, "\n")] = '\0';
+
+        // Detect sections
+        if (strstr(line, "sources:") != NULL){
+            section = 1;
+            continue;
+        }
+
+        if (strstr(line, "walls:") != NULL){
+            section = 2;
+            continue;
+        }
+
+        // Read the grid settings
+        if (sscanf(line, "n = %d", &cfg.n) == 1)
+            continue;
+        if (sscanf(line, "m = %d", &cfg.m) == 1)
+            continue;
+        if (sscanf(line, "h = %f", &cfg.h) == 1)
+            continue;
+
+        // Read the sources
+        if (section == 1){
+            int i, j;
+            if (sscanf(line, "%d %d",&i, &j) == 2){
+                cfg.src_i[cfg.nsources] = i;
+                cfg.src_j[cfg.nsources] = j;
+                cfg.nsources++;
+            }
+        }
+
+        // Read the walls
+        if (section == 2){
+            int c1, c2, r1, r2;
+            if (sscanf(line, "%d %d %d %d", &c1, &c2, &r1, &r2)){
+                cfg.wall_c1[cfg.nwalls] = c1;
+                cfg.wall_c2[cfg.nwalls] = c2;
+                cfg.wall_r1[cfg.nwalls] = r1;
+                cfg.wall_r2[cfg.nwalls] = r2;
+                cfg.nwalls++;
+            }
+        }
+    }
+
+    fclose(file);
+    return cfg;
+}
 
 
-/*
-// Add the walls to the grid
-void add_walls_to_grid(EikonalGrid* g, Config cfg){
-    if (cfg.nwalls == 0)
-        return;
+// Cleaning the configuration
+void free_config(Config* cfg){
+    free(cfg->src_i);
+    free(cfg->src_j);
+    free(cfg->wall_c1);
+    free(cfg->wall_c2);
+    free(cfg->wall_r1);
+    free(cfg->wall_r2);
+}
 
+
+// Adding walls to the grid
+void add_walls(EikonalGrid* g, Config cfg){
     for (int w=0; w < cfg.nwalls; w++){
-        int c1 = cfg.walls[w].col_start;
-        int c2 = cfg.walls[w].col_end;
-        int r1 = cfg.walls[w].row_start;
-        int r2 = cfg.walls[w].row_end;
+        int c1 = cfg.wall_c1[w];
+        int c2 = cfg.wall_c2[w];
+        int r1 = cfg.wall_r1[w];
+        int r2 = cfg.wall_r1[w];
 
         // Check the limits
         if (c1 < 0)
@@ -55,234 +131,84 @@ void add_walls_to_grid(EikonalGrid* g, Config cfg){
         if (r2 >= cfg.n)
             r2 = cfg.n - 1;
 
-        for (int i = r1; i <= r2; i++){
-            for (int j = c1; j <= c2; j++)
+        for (int i=r1; i < r2; i++){
+            for (int j=c1; j < c2; j++){
                 eikonal_grid_set_obstacle(g, i, j);
+            }
         }
     }
-}*/
-
-// Function to check whether a point is inside a wall
-int is_in_wall(int i, int j, Config cfg){
-    for (int w=0; w < cfg.nwalls; w++){
-        if (i >= cfg.walls[w].row_start && i <= cfg.walls[w].row_end && j >= cfg.walls[w].col_start && j >= cfg.walls[w].col_end)
-            return 1;
-    }
-    return 0;
 }
-/*
-// Parse the -wall arguments
-int parse_walls(int argc, char** argv, Config* cfg){
-    cfg->walls = NULL;
-    cfg->nwalls = 0;
 
-    for (int i = 1; i<argc; i++){
-        if (strcmp(argv[i], "-wall") == 0){
-            if (i + 4 < argc){
-                int c1 = atoi(argv[i+1]);
-                int c2 = atoi(argv[i+2]);
-                int r1 = atoi(argv[i+3]);
-                int r2 = atoi(argv[i+4]);
-
-                // Ensure that c1 <= c2 and r1 <= r2
-                if (c1 > c2){
-                    int c_temp = c2;
-                    c2 = c1;
-                    c1 = c_temp;
-                }
-                if (r1 > r2){
-                    int r_temp = r2;
-                    r2 = r1;
-                    r1 = r_temp;
-                }
-
-                cfg->nwalls++;
-                cfg->walls = (Wall*)realloc(cfg->walls, cfg->nwalls * sizeof(Wall));
-                cfg->walls[cfg->nwalls-1].col_start = c1;
-                cfg->walls[cfg->nwalls-1].col_end = c2;
-                cfg->walls[cfg->nwalls-1].row_start = r1;
-                cfg->walls[cfg->nwalls-1].row_end = r2;
-
-                i += 4;
-            }
-            else
-                printf("Error: -wall requires 4 arguments");
-        }
+// Saving source coordinates
+void save_sources(Config cfg){
+    FILE* file = fopen("coords_source.txt", "w");
+    if (!file){
+        printf("Error: Unable to create coords_source.txt\n");
+        return;
     }
+
+    for (int s=0; s < cfg.nsources; s++){
+        double x = cfg.src_j[s] * cfg.h;
+        double y = cfg.src_i[s] * cfg.h;
+        fprintf(file, "%.6f %.6f\n", x, y);
+    }
+    fclose(file);
+}
+
+
+
+int main(int argc, char** argv){
+    // Configuration file name
+    const char* config_file = "config.txt";
+    if (argc  > 1)
+        config_file = argv[1];
+
+    // Reading the configuration
+    Config cfg = read_config(config_file);
+
+    if (cfg.n == 0 || cfg.m == 0){
+        printf("Error: Invalid configuration (n or m not defined)\n");
+        free_config(&cfg);
+        return 1;
+    }
+
+    if (cfg.h <= 0){
+        printf("Error: Invalid configuration (h not defined)\n");
+        free_config(&cfg);
+        return 1;
+    }
+
+    if (cfg.nsources == 0){
+        printf("Error: No source specified\n");
+        free_config(&cfg);
+        return 1;
+    }
+
+    // Creating the grid
+    EikonalGrid* g = eikonal_grid_create(cfg.n, cfg.m, cfg.h);
+    if (!g){
+        printf("Error: Unable to create grid\n");
+        free_config(&cfg);
+        return 1;
+    }
+
+    // Constant speed of 1
+    eikonal_grid_set_speed_constant(g, 1.0);
+
+    // Adding the walls
+    add_walls(g, cfg);
+
+    // Storing source information
+    save_sources(cfg);
+
+    // Execution of FIM
+    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON);
+
+    eikonal_save_matrix(g, "matrix_fim.txt");
+
+    // Cleaning
+    eikonal_grid_free(g);
+    free_config(&cfg);
+    
     return 0;
-}*/
-
-/*
-// Find a free position (not in a wall)
-int find_free_position(Config* cfg, int* i, int* j){
-    for (int i = 0; i < cfg.n; i++){
-        for (int j = 0; j < cfg.m; j++){
-            if (!is_in_wall)
-        }
-    }
-}*/
-
-
-// Generating sources by type
-void generate_sources(Config cfg, int** src_i, int** src_j, int* ns){
-    int n = cfg.n;
-    int m = cfg.m;
-    int s = cfg.nsources;
-
-    switch(cfg.source_type){
-        // O: random
-        case 0:{
-            *ns = s;
-            *src_i = (int*)malloc((*ns) * sizeof(int));
-            *src_j = (int*)malloc((*ns) * sizeof(int));
-            srand(time(NULL));
-
-            for (int k=0; k < *ns; k++){
-                int valid = 0;
-                int attempts = 0;
-                while (!valid && attempts < 1000){
-                    int ti = rand() % n;
-                    int tj = rand() % m;
-                    if (!is_in_wall(ti, tj, cfg)){
-                        (*src_i)[k] = ti;
-                        (*src_j)[k] = tj;
-                        valid = 1;
-                    }
-                    attempts++;
-                }
-            }
-            break;
-        }
-
-        // 1: central
-        case 1:{
-            *ns = 1;
-            *src_i = (int*)malloc(sizeof(int));
-            *src_j = (int*)malloc(sizeof(int));
-            (*src_i)[0] = n/2;
-            (*src_j)[0] = m/2;
-
-            // If the source is in a wall, we move it
-            if (is_in_wall((*src_i)[0], (*src_j)[0], cfg)){
-                for (int j = (*src_j)[0] + 1; j < m; j++){
-                    if (!is_in_wall((*src_i)[0], j, cfg)){
-                        (*src_j)[0] = j;
-                        break;
-                    }
-                }
-
-                if (is_in_wall((*src_i)[0], (*src_j)[0], cfg)){
-                    for (int j = (*src_j)[0] - 1; j>=0; j--){
-                        if (!is_in_wall((*src_i)[0], j, cfg)){
-                            (*src_j)[0] = j;
-                            break;
-                        }
-                    }
-                }
-            }
-            break;
-        }
-
-        // 2: sinusoidal
-        case 2:{
-            *ns = s;
-            *src_i = (int*)malloc((*ns) * sizeof(int));
-            *src_j = (int*)malloc((*ns) * sizeof(int));
-
-            double amplitude = (n-1) / 4.0;
-            double periode = (double)m / s;
-
-            for (int k = 0; k < *ns; k++){
-                int j = (int)(k * periode + periode/2);
-                if (j >= m)
-                    j = m-1;
-
-                int i = n/2 + (int)(amplitude * sin(2 * M_PI * k/ (double)*ns));
-                if (i<0)
-                    i = 0;
-                if (i >= n)
-                    i = n-1;
-
-                if (is_in_wall(i, j, cfg)){
-                    for (int di=-1; di <= 1; di++){
-                        for (int dj = -1; dj <= 1; dj++){
-                            int i_temp = i + di;
-                            int j_temp = j + dj;
-                            if (0 <= i_temp < n && 0 <= j_temp < m && !is_in_wall(i_temp, j_temp, cfg)){
-                                i = i_temp;
-                                j = j_temp;
-                                break;
-                            }
-                        }
-                    }
-                }
-                (*src_i)[k] = i;
-                (*src_j)[k] = j;
-            }
-            break;
-        }
-
-        // 3: circle
-        case 3:{
-            *ns = s;
-            *src_i = (int*)malloc((*ns) * sizeof(int));
-            *src_j = (int*)malloc((*ns) * sizeof(int));
-
-            int center_i = n / 2;
-            int center_j = m / 2;
-            int radius;
-            if (n < m)
-                radius = n / 4;
-            else
-                radius = m / 4;
-
-            for (int k=0; k < *ns; k++){
-                double theta = 2 * M_PI * k / (double)*ns;
-                int i = center_i + (int)(radius * sin(theta));
-                int j = center_j + (int)(radius * cos(theta));
-
-                if (i<0)
-                    i = 0;
-                if (i >= n)
-                    i = n-1;
-                if (j<0)
-                    j = 0;
-                if (j >= m)
-                    j = m-1;
-
-                if (is_in_wall(i, j, cfg)){
-                    for (int di = -1; di <= 1; di++){
-                        for (int dj = -1; dj <= 1; dj++){
-                            int i_temp = i + di;
-                            int j_temp = j + dj;
-
-                            if (0 <= i_temp < n && 0 <= j_temp < m && !is_in_wall(i_temp, j_temp, cfg)){
-                                i = i_temp;
-                                j = j_temp;
-                                break;
-                            }
-                        }
-                    }
-                }
-                (*src_i)[k] = i;
-                (*src_j)[k] = j;
-            }
-            break;
-        }
-
-        // 4: diagonal
-        case 4:{
-            *ns = s;
-            *src_i = (int*)malloc((*ns) * sizeof(int));
-            *src_j = (int*)malloc((*ns) * sizeof(int));
-
-            int step_i = n / (*ns - 1);
-            int step_j = m / (*ns - 1);
-
-            for (int k = 0; k < *ns; k++){
-                int i = (k + 1) * step_i;
-                int j = (k + 1) * step_j;
-            }
-        }
-    }
 }

@@ -27,7 +27,7 @@ def compute_error():
                 T_fim[i,j] = float(matrix[i,j])
 
     # Loading source coordinates
-    coord_file = "coords_mesh.txt"
+    coord_file = "coords_source.txt"
     if os.path.exists(coord_file):
         coords = np.loadtxt(coord_file)
         

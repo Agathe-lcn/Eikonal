@@ -1,0 +1,13 @@
+n = 200
+m = 300
+h = 0.005
+
+# one per line
+sources:
+100 100
+50 150
+150 200
+
+# one per line (col_start col_end row_start row_end)
+walls:
+100 100 0 200

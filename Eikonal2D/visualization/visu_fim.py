@@ -31,7 +31,7 @@ def visualize_fim():
     print(f"Matrix loaded: {matrix_float.shape}")
 
     # Loading source coordinates
-    points_file = "coords_mesh.txt"
+    points_file = "coords_source.txt"
     try:
         coords = np.loadtxt(points_file)
         if coords.ndim == 1:

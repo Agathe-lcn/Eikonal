@@ -13,8 +13,7 @@ int main(){
     // Grid settings
     int n = 200;
     int m = 200;
-    double length = 1.0;
-    double h = length/n;
+    double h = 1.0/n;
     int nsources = 5;
 
     // Creating the grid
@@ -34,9 +33,9 @@ int main(){
     }
 
     // File for storing source information
-    FILE* coord_file = fopen("coords_mesh.txt", "w");
+    FILE* coord_file = fopen("coords_source.txt", "w");
     if (!coord_file){
-        printf("Error: Unable to create the coord_mesh.txt file.\n");
+        printf("Error: Unable to create the coord_source.txt file.\n");
         eikonal_grid_free(g);
         return 1;
     }
