@@ -10,8 +10,8 @@ def compute_error():
     h = length / n
 
     # Creating the figure with 2 or 3 subplots
-    #fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    fig, axes = plt.subplots(1, 2, figsize=(12,5))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    #fig, axes = plt.subplots(1, 2, figsize=(12,5))
 
     # Loading the matrix calculated by FIM
     filename = "matrix_fim.txt"
@@ -71,26 +71,25 @@ def compute_error():
     axes[0].axis('equal')
     plt.colorbar(im1, ax=axes[0])
 
-    # Figure 2: Euclidean distance
-    #im2 = axes[1].pcolormesh(X, Y, T_euclid, shading='nearest', cmap='viridis')
-    #axes[1].set_title("Euclidean distance")
-    #axes[1].set_xlabel("X")
-    #axes[1].set_ylabel("Y")
-    #axes[1].scatter(x_src, y_src, color='red', s=10, marker='.', label="Source")
-    #axes[1].legend()
-    #axes[1].axis('equal')
-    #plt.colorbar(im2, ax=axes[1], label="Distance")
-
-
-    # Figure 3: Error | T_euclid - T_fim |
-    im3 = axes[1].pcolormesh(X, Y, error, shading='nearest', cmap='hot')
+    # Figure 2: Error | T_euclid - T_fim |
+    im2 = axes[1].pcolormesh(X, Y, error, shading='nearest', cmap='hot')
     axes[1].set_title("FIM-error")
     axes[1].set_xlabel("X")
     axes[1].set_ylabel("Y")
     axes[1].scatter(x_src, y_src, color='cyan', s=10, marker='.', label="Source")
     axes[1].legend()
     axes[1].axis('equal')
-    plt.colorbar(im3, ax=axes[1])
+    plt.colorbar(im2, ax=axes[1])
+
+    # Figure 3: Euclidean distance
+    im3 = axes[2].pcolormesh(X, Y, T_euclid, shading='nearest', cmap='viridis')
+    axes[2].set_title("Euclidean distance")
+    axes[2].set_xlabel("X")
+    axes[2].set_ylabel("Y")
+    axes[2].scatter(x_src, y_src, color='red', s=10, marker='.', label="Source")
+    axes[2].legend()
+    axes[2].axis('equal')
+    plt.colorbar(im3, ax=axes[1], label="Distance")
 
     plt.tight_layout()
     plt.savefig("error_fim.png", dpi=300, bbox_inches="tight")
