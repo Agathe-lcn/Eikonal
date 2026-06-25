@@ -30,6 +30,9 @@ void eikonal_grid_set_speed(EikonalGrid* g, const double* F);
 // Mark a cell as an obstacle
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j);
 
+// Check if a source is inside a wall
+int eikonal_grid_is_obstacle(const EikonalGrid* g, int i, int j);
+
 // Local solution of the 2D eikonal equation for cell (i,j)
 // Returns the new estimated T value (first-order upwind)
 double eikonal_solve_local(const EikonalGrid* g, int i, int j);

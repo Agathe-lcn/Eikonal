@@ -71,7 +71,7 @@ Config read_config(const char* filename){
             continue;
         if (sscanf(line, "m = %d", &cfg.m) == 1)
             continue;
-        if (sscanf(line, "h = %f", &cfg.h) == 1)
+        if (sscanf(line, "h = %lf", &cfg.h) == 1)
             continue;
 
         // Read the sources
@@ -119,7 +119,7 @@ void add_walls(EikonalGrid* g, Config cfg){
         int c1 = cfg.wall_c1[w];
         int c2 = cfg.wall_c2[w];
         int r1 = cfg.wall_r1[w];
-        int r2 = cfg.wall_r1[w];
+        int r2 = cfg.wall_r2[w];
 
         // Check the limits
         if (c1 < 0)
@@ -131,12 +131,32 @@ void add_walls(EikonalGrid* g, Config cfg){
         if (r2 >= cfg.n)
             r2 = cfg.n - 1;
 
-        for (int i=r1; i < r2; i++){
-            for (int j=c1; j < c2; j++){
+        for (int i=r1; i <= r2; i++){
+            for (int j=c1; j <= c2; j++){
                 eikonal_grid_set_obstacle(g, i, j);
             }
         }
     }
+}
+
+// Removing the sources that are inside a wall
+void removing_sources_in_walls(EikonalGrid* g, Config* cfg){
+    int valid = 0;
+    for (int s=0; s < cfg->nsources; s++){
+        int i = cfg->src_i[s];
+        int j = cfg->src_j[s];
+
+        if (eikonal_grid_is_obstacle(g,i,j)){
+            printf("Warning: source %d at (%d,%d) is inside a wall, it will be ignored.\n", s, i, j);
+            continue;
+        }
+
+        // We keep only the valid sources
+        cfg->src_i[valid] = i;
+        cfg->src_j[valid] = j;
+        valid++;
+    }
+    cfg->nsources = valid;
 }
 
 // Saving source coordinates
@@ -150,11 +170,10 @@ void save_sources(Config cfg){
     for (int s=0; s < cfg.nsources; s++){
         double x = cfg.src_j[s] * cfg.h;
         double y = cfg.src_i[s] * cfg.h;
-        fprintf(file, "%.6f %.6f\n", x, y);
+        fprintf(file, "%.6f %.6f\n", x, y);   
     }
     fclose(file);
 }
-
 
 
 int main(int argc, char** argv){
@@ -197,6 +216,16 @@ int main(int argc, char** argv){
 
     // Adding the walls
     add_walls(g, cfg);
+
+    // Removing sources inside walls
+    removing_sources_in_walls(g, &cfg);
+
+    if (cfg.nsources == 0){
+        printf("Error: All sources are inside walls, nothing to propagate.\n");
+        eikonal_grid_free(g);
+        free_config(&cfg);
+        return 1;
+    }
 
     // Storing source information
     save_sources(cfg);

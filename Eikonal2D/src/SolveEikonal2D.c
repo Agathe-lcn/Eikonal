@@ -61,6 +61,11 @@ void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j){
 }
 
 
+int eikonal_grid_is_obstacle(const EikonalGrid* g, int i, int j){
+    return g->F[i * g->m + j] <= EIKONAL_EPS;
+}
+
+
 double eikonal_solve_local(const EikonalGrid* g, int i, int j){
     double F_ij = g->F[i * g->m + j];
     
