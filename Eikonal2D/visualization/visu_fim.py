@@ -18,19 +18,20 @@ def visualize_fim():
     #retrieving n, m, and h
     n,m = matrix.shape
 
+    h = 0.005   # Default value
     if os.path.exists("config.txt"):
         with open("config.txt", "r") as f:
             for line in f:
                 line = line.strip()
                 if "h =" in line:
                     h = float(line.split("=")[1].strip())
-
+    
     # Convert to float
     T_fim = np.zeros((n,m))
     for i in range(n):
         for j in range(m):
             if matrix[i,j] == 'inf':
-                T_fim[i,j] = np.inf
+                T_fim[i,j] = np.nan
             else:
                 T_fim[i,j] = float(matrix[i,j])
 
@@ -52,8 +53,8 @@ def visualize_fim():
 
 
     # Creating the mesh grid
-    x = np.arange(m)
-    y = np.arange(n)
+    x = np.arange(m) * h
+    y = np.arange(n) * h
     X, Y = np.meshgrid(x,y)
 
     # Visualization
@@ -65,21 +66,7 @@ def visualize_fim():
 
     # Sources
     for (xs,ys) in sources:
-        # Convert real coordinates to indices
-        if m > 1:
-            j_src = int(round(xs/h))
-        else:
-            j_src = 0
-
-        if n > 1:
-            i_src = int(round(ys/h))
-        else:
-            i_src = 0
-
-        # Check the limits
-        j_src = max(0, min(j_src, m-1))
-        i_src = max(0, min(i_src, n-1))
-        plt.scatter(j_src, i_src, color='red', s=10, marker='.', edgecolors='red', linewidth=1)
+        plt.scatter(xs, ys, color='red', s=10, marker='.', edgecolors='red', linewidth=1)
 
     plt.legend()
     plt.axis('equal')

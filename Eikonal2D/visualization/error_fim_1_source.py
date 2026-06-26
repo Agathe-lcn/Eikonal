@@ -28,10 +28,12 @@ def compute_error():
 
     # Loading source coordinates
     coord_file = "coords_source.txt"
-    if os.path.exists(coord_file):
-        coords = np.loadtxt(coord_file)
+    if not os.path.exists(coord_file):
+        raise FileNotFoundError(f"{coord_file} not found")
+
+    coords = np.loadtxt(coord_file)
         
-        x_src, y_src = coords[0], coords[1]
+    x_src, y_src = coords[0], coords[1]
 
     # Euclidean distance
     T_euclid = np.zeros((n,m))
