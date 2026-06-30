@@ -175,6 +175,29 @@ void save_sources(Config cfg){
     fclose(file);
 }
 
+// Set variable speed with 3 zones
+// Zone 1: rows 0 to n/3 - 1 -> F = 1.0
+// Zone 2: rows n/3 to 2n/3 - 1 -> F = 5.0
+// Zone 3: rows 2n/3 to n - 1 -> F = 10.0
+void set_variable_speed(EikonalGrid *g, int n, int m){
+    int zone1_end = n/3;
+    int zone2_end = 2*n/3;
+
+    for (int i = 0; i<n; i++){
+        for (int j = 0; j<m; j++){
+            double F;
+
+            if (i < zone1_end)
+                F = 1.0;
+            else if (i < zone2_end)
+                F = 2.0;
+            else F = 3.0;
+
+            eikonal_grid_set_speed(g, i, j, F);
+        }
+    }
+}
+
 
 int main(int argc, char** argv){
     // Configuration file name
@@ -212,7 +235,10 @@ int main(int argc, char** argv){
     }
 
     // Constant speed of 1
-    eikonal_grid_set_speed_constant(g, 1.0);
+    //eikonal_grid_set_speed_constant(g, 1.0);
+
+    // Set variable speed instead of constant speed
+    set_variable_speed(g, cfg.n, cfg.m);
 
     // Adding the walls
     add_walls(g, cfg);
@@ -229,6 +255,8 @@ int main(int argc, char** argv){
 
     // Storing source information
     save_sources(cfg);
+
+    save_speed(g, "speed.txt");
 
     // Execution of FIM
     fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON);

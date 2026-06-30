@@ -9,4 +9,5 @@
 // ns is the number of sources
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon);
 
+
 #endif /* FIM_H */

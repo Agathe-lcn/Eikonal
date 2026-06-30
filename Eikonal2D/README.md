@@ -1,3 +1,9 @@
+
+##### A ECRIRE PROPREMENT ####
+
+
+
+
 Pour avoir le plot avec 5 sources et un mur vertical au centre:
 dans dossier Eikonal2D:
 gcc -o generate_grid grids/5_sources_1_wall.c src/SolveEikonal2D.c src/FIM2D.c -lm

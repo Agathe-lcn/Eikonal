@@ -96,9 +96,6 @@ static inline int list_is_empty(const NodeList* l){
     return l->size == 0;
 }
 
-
-
-
 // Check whether a neighbor exists and can be improved
 static inline int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon){
     if (index < 0)
@@ -123,8 +120,6 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
             list_insert_before(list, index, current_node);
     }
 }
-
-
 
 
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon){

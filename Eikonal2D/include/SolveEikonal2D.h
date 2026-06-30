@@ -22,10 +22,16 @@ EikonalGrid* eikonal_grid_create(int n, int m, double h);
 void eikonal_grid_free(EikonalGrid* g);
 
 // Sets the speed F for the entire grid (constant)
-void eikonal_grid_set_speed_constant(EikonalGrid* g, double speed);
+void eikonal_grid_set_speed_constant(EikonalGrid* g, double F);
 
 // Sets the F-value cell by cell using an array
-void eikonal_grid_set_speed(EikonalGrid* g, const double* F);
+void eikonal_grid_set_speed(EikonalGrid* g, int i, int j, double F);
+
+// Gets the F-value cell by cell
+double eikonal_grid_get_speed(const EikonalGrid* g, int i, int j);
+
+// Saves the F values to a text file
+int save_speed(const EikonalGrid* g, const char* filename);
 
 // Mark a cell as an obstacle
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j);

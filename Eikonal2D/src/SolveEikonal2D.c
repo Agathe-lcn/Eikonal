@@ -44,16 +44,48 @@ void eikonal_grid_free(EikonalGrid* g){
 }
 
 
-void eikonal_grid_set_speed_constant(EikonalGrid* g, double speed){
+void eikonal_grid_set_speed_constant(EikonalGrid* g, double F){
     for (int k=0; k < g->n * g->m; k++)
-        g->F[k] = speed;
+        g->F[k] = F;
 }
 
 
-void eikonal_grid_set_speed(EikonalGrid* g, const double* F){
-    memcpy(g->F, F, g->n * g->m * sizeof(double));
+void eikonal_grid_set_speed(EikonalGrid* g, int i, int j, double F){
+    if (!g || i < 0 || i >= g->n || j < 0 || j >= g->m)
+        return;
+
+    g->F[i * g->m + j] = F;
 }
 
+double eikonal_grid_get_speed(const EikonalGrid* g, int i, int j){
+    if (!g || i<0 || i >= g->n || j<0 || j >= g->m)
+        return 1.0; // default value
+
+    return g->F[i * g->m + j];
+}
+
+int save_speed(const EikonalGrid* g, const char* filename){
+    if (!g || !filename)
+        return -1;
+
+    FILE* file = fopen(filename, "w");
+    if (!file){
+        printf("Error: Unable to create %s\n", filename);
+        return -1;
+    }
+
+    for (int i=0; i < g->n; i++){
+        for (int j=0; j < g->m; j++){
+            double F = g->F[i * g->m + j];
+            fprintf(file, "%.6f", F);
+            if (j < g->m - 1)
+                fprintf(file, " ");
+        }
+        fprintf(file, "\n");
+    }
+    fclose(file);
+    return 0;
+}
 
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j){
     g->F[i * g->m + j] = 0.0;
