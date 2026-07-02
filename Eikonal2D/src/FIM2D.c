@@ -130,6 +130,15 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     int m = g->m;
     int ncell = n * m;
 
+    // Tag allocation and initialization
+    int* source_tag = (int*)malloc(ncell * sizeof(int));
+    if (!source_tag){
+        printf("Error: Unable to allocate memory for source tags\n");
+        return;
+    }
+    for (int k = 0; k < ncell; k++)
+        source_tag[k] = -1;
+
     // Initialization: set all cells to +inf
     for (int k=0; k < ncell; k++)
         g->T[k] = EIKONAL_INF;
@@ -168,6 +177,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                     double T_new = eikonal_solve_local(g, ni, nj);
                     if (T_new < g->T[index] - 1e-12){
                         g->T[index] = T_new;
+                        source_tag[index] = s;
                         list_push_back(narrow, index);
                     }
                 }
@@ -198,14 +208,15 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 int ni = neighbors[k][0];
                 int nj = neighbors[k][1];
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    int index = ni * m + nj;
+                    int index_neighbor = ni * m + nj;
 
                     // Check if the neighbor can be improved
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
-                    if (T_neighbor_new < g->T[index] - 1e-12){
-                        g->T[index] = T_neighbor_new;
-                        if (!list_contains(narrow, index))
-                            list_push_back(narrow, index);
+                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
+                        g->T[index_neighbor] = T_neighbor_new;
+                        source_tag[index_neighbor] = source_tag[index];
+                        if (!list_contains(narrow, index_neighbor))
+                            list_push_back(narrow, index_neighbor);
                     }
                 }
             }
@@ -224,20 +235,23 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 int ni = neighbors[k][0];
                 int nj = neighbors[k][1];
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    int index = ni * m + nj;
+                    int index_neighbor = ni * m + nj;
 
                     // Check if the neighbor can be improved
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
-                    if (T_neighbor_new < g->T[index] - 1e-12){
-                        g->T[index] = T_neighbor_new;
-                        if (!list_contains(narrow, index))
-                            list_push_back(narrow, index);
+                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
+                        g->T[index_neighbor] = T_neighbor_new;
+                        source_tag[index_neighbor] = source_tag[index];
+                        if (!list_contains(narrow, index_neighbor))
+                            list_push_back(narrow, index_neighbor);
                     }
                 }
             }
         }
     }
 
+    // Saving tags
+    eikonal_save_tags(g, source_tag, "source_tags.txt");
 
     // Cleaning
     list_free(narrow);

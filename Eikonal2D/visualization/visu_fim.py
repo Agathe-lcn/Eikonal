@@ -1,6 +1,8 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 import os
+from matplotlib.colors import ListedColormap
+import matplotlib.colors as mcolors
 
 def visualize_fim():
     # Loading the FIM matrix
@@ -62,6 +64,13 @@ def visualize_fim():
     plt.title("FIM-distance map")
     plt.xlabel("X")
     plt.ylabel("Y")
+
+    # Adding isocontours
+    T_min = np.nanmin(T_fim)
+    T_max = np.nanmax(T_fim)
+    nb_contours = 15
+    levels = np.linspace(T_min, T_max, nb_contours)
+    plt.contour(X, Y, T_fim, levels, colors = 'white', linewidths=0.8, alpha=0.7)
 
     # Sources
     for (xs,ys) in sources:

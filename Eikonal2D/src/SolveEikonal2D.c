@@ -64,29 +64,6 @@ double eikonal_grid_get_speed(const EikonalGrid* g, int i, int j){
     return g->F[i * g->m + j];
 }
 
-int save_speed(const EikonalGrid* g, const char* filename){
-    if (!g || !filename)
-        return -1;
-
-    FILE* file = fopen(filename, "w");
-    if (!file){
-        printf("Error: Unable to create %s\n", filename);
-        return -1;
-    }
-
-    for (int i=0; i < g->n; i++){
-        for (int j=0; j < g->m; j++){
-            double F = g->F[i * g->m + j];
-            fprintf(file, "%.6f", F);
-            if (j < g->m - 1)
-                fprintf(file, " ");
-        }
-        fprintf(file, "\n");
-    }
-    fclose(file);
-    return 0;
-}
-
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j){
     g->F[i * g->m + j] = 0.0;
     g->T[i * g->m + j] = EIKONAL_INF;
@@ -190,5 +167,51 @@ int eikonal_save_matrix(const EikonalGrid *g, const char *filename){
         fprintf(f, "\n");
     }
     fclose(f);
+    return 0;
+}
+
+int save_speed(const EikonalGrid* g, const char* filename){
+    if (!g || !filename)
+        return -1;
+
+    FILE* file = fopen(filename, "w");
+    if (!file){
+        printf("Error: Unable to create %s\n", filename);
+        return -1;
+    }
+
+    for (int i=0; i < g->n; i++){
+        for (int j=0; j < g->m; j++){
+            double F = g->F[i * g->m + j];
+            fprintf(file, "%.6f", F);
+            if (j < g->m - 1)
+                fprintf(file, " ");
+        }
+        fprintf(file, "\n");
+    }
+    fclose(file);
+    return 0;
+}
+
+int eikonal_save_tags(const EikonalGrid* g, const int* source_tag, const char* filename){
+    if (!g || !source_tag || !filename)
+        return -1;
+
+    FILE* file = fopen(filename, "w");
+    if (!file){
+        printf("Error: Unable to create %s\n", filename);
+        return -1;
+    }
+
+    for (int i=0; i < g->n; i++){
+        for (int j=0; j < g->m; j++){
+            int tag = source_tag[i * g->m + j];
+            fprintf(file, "%d", tag);
+            if (j < g->m - 1)
+                fprintf(file, " ");
+        }
+        fprintf(file, " \n");
+    }
+    fclose(file);
     return 0;
 }

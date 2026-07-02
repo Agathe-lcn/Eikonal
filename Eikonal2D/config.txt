@@ -1,15 +1,14 @@
-n = 200
+n = 300
 m = 300
-h = 0.005
+h = 0.00333
 
 # one per line
 sources:
-50 50
-50 250
+50 10
 150 50
-150 250
+150 180
+50 250
+280 250
 
 # one per line (col_start col_end row_start row_end)
 walls:
-0 100 75 75
-200 200 100 200

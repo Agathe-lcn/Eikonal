@@ -235,10 +235,10 @@ int main(int argc, char** argv){
     }
 
     // Constant speed of 1
-    //eikonal_grid_set_speed_constant(g, 1.0);
+    eikonal_grid_set_speed_constant(g, 1.0);
 
     // Set variable speed instead of constant speed
-    set_variable_speed(g, cfg.n, cfg.m);
+    //set_variable_speed(g, cfg.n, cfg.m);
 
     // Adding the walls
     add_walls(g, cfg);

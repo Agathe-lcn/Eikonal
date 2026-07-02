@@ -30,9 +30,6 @@ void eikonal_grid_set_speed(EikonalGrid* g, int i, int j, double F);
 // Gets the F-value cell by cell
 double eikonal_grid_get_speed(const EikonalGrid* g, int i, int j);
 
-// Saves the F values to a text file
-int save_speed(const EikonalGrid* g, const char* filename);
-
 // Mark a cell as an obstacle
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j);
 
@@ -46,6 +43,11 @@ double eikonal_solve_local(const EikonalGrid* g, int i, int j);
 // Saves the T matrix to a text file (Numpy-compatible for visualization)
 int eikonal_save_matrix(const EikonalGrid* g, const char* filename);
 
+// Saves the F values to a text file
+int save_speed(const EikonalGrid* g, const char* filename);
+
+// Saves the tags with the closest sources
+int eikonal_save_tags(const EikonalGrid* g, const int* source_tag, const char* filename);
 
 
 
