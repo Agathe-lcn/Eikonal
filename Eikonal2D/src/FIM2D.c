@@ -150,6 +150,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         if (i >= 0 && i < n && j >= 0 && j < m){
             int index = i * m + j;
             g->T[index] = 0.0;
+            source_tag[index] = s;
         }
     }
 

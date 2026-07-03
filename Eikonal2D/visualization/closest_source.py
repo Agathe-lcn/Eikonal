@@ -27,7 +27,7 @@ def visualize_tags():
         sources = sources.reshape(1, -1)
     n_sources = sources.shape[0]
 
-    # Grid for visualization
+    # Creating the meshgrid
     x = np.arange(m) * h
     y = np.arange(n) * h
     X, Y = np.meshgrid(x, y)
