@@ -10,4 +10,7 @@
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon);
 
 
+void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, int max_cells);
+
+
 #endif /* FIM_H */

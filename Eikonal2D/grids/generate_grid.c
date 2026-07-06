@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #define EPSILON 1e-12
 #define MAX_LINE 1024
@@ -175,23 +176,14 @@ void save_sources(Config cfg){
     fclose(file);
 }
 
-// Set variable speed with 3 zones
-// Zone 1: rows 0 to n/3 - 1 -> F = 1.0
-// Zone 2: rows n/3 to 2n/3 - 1 -> F = 5.0
-// Zone 3: rows 2n/3 to n - 1 -> F = 10.0
-void set_variable_speed(EikonalGrid *g, int n, int m){
-    int zone1_end = n/3;
-    int zone2_end = 2*n/3;
 
+void set_variable_speed(EikonalGrid *g, int n, int m, double h){
     for (int i = 0; i<n; i++){
         for (int j = 0; j<m; j++){
-            double F;
+            double x = j*h;
+            double y = i*h;
 
-            if (i < zone1_end)
-                F = 1.0;
-            else if (i < zone2_end)
-                F = 2.0;
-            else F = 3.0;
+            double F = 1 - 0.8 * exp(- (pow(x - 0.65, 2) + pow(y - 0.65, 2)) / 0.02);
 
             eikonal_grid_set_speed(g, i, j, F);
         }
@@ -238,7 +230,7 @@ int main(int argc, char** argv){
     eikonal_grid_set_speed_constant(g, 1.0);
 
     // Set variable speed instead of constant speed
-    //set_variable_speed(g, cfg.n, cfg.m);
+    //set_variable_speed(g, cfg.n, cfg.m, cfg.h);
 
     // Adding the walls
     add_walls(g, cfg);
@@ -260,6 +252,9 @@ int main(int argc, char** argv){
 
     // Execution of FIM
     fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON);
+
+    // Execution of FIM with a threshold
+    fim_solve_threshold(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, 1000);
 
     eikonal_save_matrix(g, "matrix_fim.txt");
 

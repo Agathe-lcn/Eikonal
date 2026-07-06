@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <time.h>
 
 // Double-linked list for narrowband
 
@@ -125,6 +126,8 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon){
     if (!g || !src_i || !src_j || ns <= 0)
         return;
+
+    clock_t start_time = clock();
 
     int n = g->n;
     int m = g->m;
@@ -253,6 +256,159 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
     // Saving tags
     eikonal_save_tags(g, source_tag, "source_tags.txt");
+
+    clock_t end_time = clock();
+    double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
+    printf("FIM finished (without threshold) in %.6f seconds\n", time);
+
+    // Cleaning
+    list_free(narrow);
+}
+
+
+void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, int max_cells){
+    if (!g || !src_i || !src_j || ns <= 0)
+        return;
+
+    clock_t start_time = clock();
+
+    int n = g->n;
+    int m = g->m;
+    int ncell = n * m;
+
+    // Tag allocation and initialization
+    int* source_tag = (int*)malloc(ncell * sizeof(int));
+    if (!source_tag){
+        printf("Error: Unable to allocate memory for source tags\n");
+        return;
+    }
+    for (int k = 0; k < ncell; k++)
+        source_tag[k] = -1;
+
+    // Initialization: set all cells to +inf
+    for (int k=0; k < ncell; k++)
+        g->T[k] = EIKONAL_INF;
+
+    // Initializing sources
+    for (int s=0; s < ns; s++){
+        int i = src_i[s];
+        int j = src_j[s];
+        if (i >= 0 && i < n && j >= 0 && j < m){
+            int index = i * m + j;
+            g->T[index] = 0.0;
+            source_tag[index] = s;
+        }
+    }
+
+    // Creation of Narrow Band
+    NodeList* narrow = list_create(ncell);
+    if (!narrow)
+        return;
+
+    int cells_processed = 0;
+    int compute_all = (max_cells <= 0);
+
+    // Add the neighbors of the sources to the active list
+    for (int s=0; s < ns; s++){
+        int i = src_i[s];
+        int j = src_j[s];
+        if (i < 0 || i >= n || j < 0 || j >= m)
+            continue;
+
+        // The 4 neighbors tour
+        int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
+        for (int k=0; k<4; k++){
+            int ni = neighbors[k][0];
+            int nj = neighbors[k][1];
+
+            if (ni >= 0 && ni < n && nj >= 0 && nj < m){
+                int index = ni * m + nj;
+                if (!list_contains(narrow, index)){
+                    double T_new = eikonal_solve_local(g, ni, nj);
+                    if (T_new < g->T[index] - 1e-12){
+                        g->T[index] = T_new;
+                        source_tag[index] = s;
+                        list_push_back(narrow, index);
+                    }
+                }
+            }
+        }
+    }
+
+    // Main loop
+    int iterations = 0;
+    while(!list_is_empty(narrow) && (compute_all || cells_processed < max_cells)){
+        iterations ++;
+
+        // Remove the first item of the list
+        int index = list_pop_front(narrow);
+        if (index < 0)
+            continue;
+
+        int i = index/m;
+        int j = index%m;
+        double T_old = g->T[index];
+        double T_new = eikonal_solve_local(g, i, j);
+        double diff = fabs(T_new - T_old);
+
+        if (g->T[index] > 0 || source_tag[index] < 0)
+            cells_processed ++;
+
+        if (diff <= epsilon){
+            // The cell has converged: we freeze it and its neighbors that can be improved are added to the list
+            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
+            for (int k=0; k < 4; k++){
+                int ni = neighbors[k][0];
+                int nj = neighbors[k][1];
+                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
+                    int index_neighbor = ni * m + nj;
+
+                    // Check if the neighbor can be improved
+                    double T_neighbor_new = eikonal_solve_local(g, ni, nj);
+                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
+                        g->T[index_neighbor] = T_neighbor_new;
+                        source_tag[index_neighbor] = source_tag[index];
+                        if (!list_contains(narrow, index_neighbor))
+                            list_push_back(narrow, index_neighbor);
+                    }
+                }
+            }
+        }
+
+        else{
+            // The cell has not converged: update its value
+            g->T[index] = T_new;
+
+            // The cell is reinserted into the list (it will be recalculated)
+            list_push_front(narrow, index);
+
+            // We go through the four neighbors to add them if they can be upgraded
+            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
+            for (int k=0; k < 4; k++){
+                int ni = neighbors[k][0];
+                int nj = neighbors[k][1];
+                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
+                    int index_neighbor = ni * m + nj;
+
+                    // Check if the neighbor can be improved
+                    double T_neighbor_new = eikonal_solve_local(g, ni, nj);
+                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
+                        g->T[index_neighbor] = T_neighbor_new;
+                        source_tag[index_neighbor] = source_tag[index];
+                        if (!list_contains(narrow, index_neighbor))
+                            list_push_back(narrow, index_neighbor);
+                    }
+                }
+            }
+        }
+    }
+
+    // Saving tags
+    eikonal_save_tags(g, source_tag, "source_tags.txt");
+
+    clock_t end_time = clock();
+    double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
+    printf("FIM finished (with threshold) in %.6f seconds\n", time);
 
     // Cleaning
     list_free(narrow);
