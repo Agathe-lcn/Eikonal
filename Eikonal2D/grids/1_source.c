@@ -49,7 +49,7 @@ int main(){
     fclose(coord_file);
 
     // Execution of FIM
-    fim_solve(g, src_i, src_j, nsources, EPSILON);
+    fim_solve(g, src_i, src_j, nsources, EPSILON, -1.0);
 
     eikonal_save_matrix(g, "matrix_fim.txt");
 

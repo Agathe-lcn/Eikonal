@@ -109,7 +109,7 @@ static inline int is_neighbor_updatable(const EikonalGrid* g, int index, double 
 
     return 0;
 }
-
+/*
 // Add a neighbor to the list if it isn't already on it
 static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int index, double T_new, Node* current_node, double epsilon){
     if (index < 0)
@@ -120,7 +120,7 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
         if (T_old - T_new > epsilon)
             list_insert_before(list, index, current_node);
     }
-}
+}*/
 
 
 // Check if a cell is within the radius
