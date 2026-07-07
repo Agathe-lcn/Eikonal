@@ -251,7 +251,7 @@ int main(int argc, char** argv){
     save_speed(g, "speed.txt");
 
     // Execution of FIM
-    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, 30.0);
+    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, -1.0);
 
     eikonal_save_matrix(g, "matrix_fim.txt");
 
