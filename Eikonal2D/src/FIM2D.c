@@ -123,150 +123,61 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
 }
 
 
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon){
-    if (!g || !src_i || !src_j || ns <= 0)
-        return;
+// Check if a cell is within the radius
+static int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j, int source_tag, double max_radius){
+    if (max_radius <= 0.0)
+        return 1;
 
-    clock_t start_time = clock();
-
-    int n = g->n;
-    int m = g->m;
-    int ncell = n * m;
-
-    // Tag allocation and initialization
-    int* source_tag = (int*)malloc(ncell * sizeof(int));
-    if (!source_tag){
-        printf("Error: Unable to allocate memory for source tags\n");
-        return;
-    }
-    for (int k = 0; k < ncell; k++)
-        source_tag[k] = -1;
-
-    // Initialization: set all cells to +inf
-    for (int k=0; k < ncell; k++)
-        g->T[k] = EIKONAL_INF;
-
-    // Initializing sources
-    for (int s=0; s < ns; s++){
-        int i = src_i[s];
-        int j = src_j[s];
-        if (i >= 0 && i < n && j >= 0 && j < m){
-            int index = i * m + j;
-            g->T[index] = 0.0;
-            source_tag[index] = s;
-        }
-    }
-
-    // Creation of Narrow Band
-    NodeList* narrow = list_create(ncell);
-    if (!narrow)
-        return;
-
-    // Add the neighbors of the sources to the active list
-    for (int s=0; s < ns; s++){
-        int i = src_i[s];
-        int j = src_j[s];
-        if (i < 0 || i >= n || j < 0 || j >= m)
-            continue;
-
-        // The 4 neighbors tour
-        int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
-        for (int k=0; k<4; k++){
-            int ni = neighbors[k][0];
-            int nj = neighbors[k][1];
-
-            if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                int index = ni * m + nj;
-                if (!list_contains(narrow, index)){
-                    double T_new = eikonal_solve_local(g, ni, nj);
-                    if (T_new < g->T[index] - 1e-12){
-                        g->T[index] = T_new;
-                        source_tag[index] = s;
-                        list_push_back(narrow, index);
-                    }
-                }
-            }
-        }
-    }
-
-    // Main loop
-    int iterations = 0;
-    while(!list_is_empty(narrow) && iterations < ncell * 10){
-        iterations ++;
-
-        // Remove the first item of the list
-        int index = list_pop_front(narrow);
-        if (index < 0)
-            continue;
-
-        int i = index/m;
-        int j = index%m;
-        double T_old = g->T[index];
-        double T_new = eikonal_solve_local(g, i, j);
-        double diff = fabs(T_new - T_old);
-
-        if (diff <= epsilon){
-            // The cell has converged: we freeze it and its neighbors that can be improved are added to the list
-            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
-            for (int k=0; k < 4; k++){
-                int ni = neighbors[k][0];
-                int nj = neighbors[k][1];
-                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    int index_neighbor = ni * m + nj;
-
-                    // Check if the neighbor can be improved
-                    double T_neighbor_new = eikonal_solve_local(g, ni, nj);
-                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
-                        g->T[index_neighbor] = T_neighbor_new;
-                        source_tag[index_neighbor] = source_tag[index];
-                        if (!list_contains(narrow, index_neighbor))
-                            list_push_back(narrow, index_neighbor);
-                    }
-                }
-            }
-        }
-
-        else{
-            // The cell has not converged: update its value
-            g->T[index] = T_new;
-
-            // The cell is reinserted into the list (it will be recalculated)
-            list_push_front(narrow, index);
-
-            // We go through the four neighbors to add them if they can be upgraded
-            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
-            for (int k=0; k < 4; k++){
-                int ni = neighbors[k][0];
-                int nj = neighbors[k][1];
-                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    int index_neighbor = ni * m + nj;
-
-                    // Check if the neighbor can be improved
-                    double T_neighbor_new = eikonal_solve_local(g, ni, nj);
-                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
-                        g->T[index_neighbor] = T_neighbor_new;
-                        source_tag[index_neighbor] = source_tag[index];
-                        if (!list_contains(narrow, index_neighbor))
-                            list_push_back(narrow, index_neighbor);
-                    }
-                }
-            }
-        }
-    }
-
-    // Saving tags
-    eikonal_save_tags(g, source_tag, "source_tags.txt");
-
-    clock_t end_time = clock();
-    double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-    printf("FIM finished (without threshold) in %.6f seconds\n", time);
-
-    // Cleaning
-    list_free(narrow);
+    double di = (double)(i - src_i[source_tag]);
+    double dj = (double)(j - src_j[source_tag]);
+    double dist = sqrt(di * di + dj * dj);
+    return (dist <= max_radius);
 }
 
 
-void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, int max_cells){
+// Counting the cells in the ray
+static int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const int* src_j, int ns, double max_radius) {
+    if (max_radius <= 0.0)
+        return g->n * g->m;
+    
+    int n = g->n;
+    int m = g->m;
+    int count = 0;
+    int radius_cells = (int)ceil(max_radius);
+    
+    int* visited = (int*)calloc(n * m, sizeof(int));
+    if (!visited)
+        return g->n * g->m;
+    
+    for (int s = 0; s < ns; s++) {
+        int i0 = src_i[s];
+        int j0 = src_j[s];
+        
+        for (int di = -radius_cells; di <= radius_cells; di++) {
+            for (int dj = -radius_cells; dj <= radius_cells; dj++) {
+                int i = i0 + di;
+                int j = j0 + dj;
+                
+                if (i >= 0 && i < n && j >= 0 && j < m) {
+                    double dist = sqrt((double)(di * di + dj * dj));
+                    if (dist <= max_radius) {
+                        int index = i * m + j;
+                        if (!visited[index]) {
+                            visited[index] = 1;
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    free(visited);
+    return count;
+}
+
+
+void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius) {
     if (!g || !src_i || !src_j || ns <= 0)
         return;
 
@@ -302,11 +213,10 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
 
     // Creation of Narrow Band
     NodeList* narrow = list_create(ncell);
-    if (!narrow)
+    if (!narrow) {
+        free(source_tag);
         return;
-
-    int cells_processed = 0;
-    int compute_all = (max_cells <= 0);
+    }
 
     // Add the neighbors of the sources to the active list
     for (int s=0; s < ns; s++){
@@ -323,6 +233,11 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
 
             if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                 int index = ni * m + nj;
+
+                // Check whether the neighbor is within the circle with radius max_seuil and center s
+                if (!is_in_radius(src_i, src_j, ns, ni, nj, s, max_radius))
+                    continue;
+
                 if (!list_contains(narrow, index)){
                     double T_new = eikonal_solve_local(g, ni, nj);
                     if (T_new < g->T[index] - 1e-12){
@@ -335,26 +250,39 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
         }
     }
 
-    // Main loop
-    int iterations = 0;
-    while(!list_is_empty(narrow) && (compute_all || cells_processed < max_cells)){
-        iterations ++;
 
+    int compute_all = (max_radius <= 0.0);
+    int total_cells = 0;
+    int cells_processed = 0;
+
+    // Counting the cells in the ray
+    if (!compute_all) 
+        total_cells = count_cells_in_radius(g, src_i, src_j, ns, max_radius);
+
+    // Main loop
+    while(!list_is_empty(narrow)) {
         // Remove the first item of the list
         int index = list_pop_front(narrow);
         if (index < 0)
             continue;
 
-        int i = index/m;
-        int j = index%m;
+        int i = index / m;
+        int j = index % m;
+
+        // Check the ray
+        if (!compute_all && !is_in_radius(src_i, src_j, ns, i, j, source_tag[index], max_radius))
+            continue; 
+
+        // Increment the counter
+        if (!compute_all && (g->T[index] > 0 || source_tag[index] < 0)) {
+            cells_processed++;
+        }
+
         double T_old = g->T[index];
         double T_new = eikonal_solve_local(g, i, j);
         double diff = fabs(T_new - T_old);
 
-        if (g->T[index] > 0 || source_tag[index] < 0)
-            cells_processed ++;
-
-        if (diff <= epsilon){
+        if (diff <= epsilon) {
             // The cell has converged: we freeze it and its neighbors that can be improved are added to the list
             int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
             for (int k=0; k < 4; k++){
@@ -362,6 +290,10 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
                 int nj = neighbors[k][1];
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                     int index_neighbor = ni * m + nj;
+
+                    // Check the ray
+                    if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
+                        continue;
 
                     // Check if the neighbor can be improved
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
@@ -373,9 +305,7 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
                     }
                 }
             }
-        }
-
-        else{
+        } else {
             // The cell has not converged: update its value
             g->T[index] = T_new;
 
@@ -390,6 +320,10 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                     int index_neighbor = ni * m + nj;
 
+                    // Check the ray
+                    if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
+                        continue;
+
                     // Check if the neighbor can be improved
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
                     if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
@@ -401,6 +335,10 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
                 }
             }
         }
+
+        // Check the shutdown condition
+        if (!compute_all && cells_processed >= total_cells)
+            break;
     }
 
     // Saving tags
@@ -408,8 +346,13 @@ void fim_solve_threshold(EikonalGrid* g, const int* src_i, const int* src_j, int
 
     clock_t end_time = clock();
     double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-    printf("FIM finished (with threshold) in %.6f seconds\n", time);
+
+    if (compute_all)
+        printf("FIM finished (no threshold) in %.6f seconds\n", time);
+    else
+        printf("FIM finished (threshold): %d cells processed in %.6f seconds\n", cells_processed, time);
 
     // Cleaning
     list_free(narrow);
+    free(source_tag);
 }

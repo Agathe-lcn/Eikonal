@@ -29,3 +29,8 @@ python3 visualization/visu_fim.py
 pour mettre vitesse non cste:
 modifier la fonction set_variable_speed du fichier generate_grid.c avec la fonction de vitesse voulue
 dans le main du fichier generate_grid.c, mettre en commentaire la ligne "eikonal_grid_set_speed_constant(g,1.0) et décommenter la ligne set_variable_speed(g, cfg.n, cfg.m)
+
+
+
+
+dans les params de fim_solve, si on veut parcourir toute la grille on met un max_radius négatif et si on veut un seuil on met la valeur du seuil
