@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 
 def visualize_fim_F():
-    # Loading the FIM matrix
+    # Charge la matrice de la FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
         print(f"Error: File {fim_file} not found")
@@ -15,10 +15,10 @@ def visualize_fim_F():
         print(f"Error: Unable to load {fim_file}: {e}")
         return
 
-    #retrieving n, m, and h
+    # Retrouve n, m, and h
     n,m = matrix.shape
 
-    h = 1   # Default value
+    h = 1   # Valeur par défaut
     if os.path.exists("config.txt"):
         with open("config.txt", "r") as f:
             for line in f:
@@ -26,7 +26,7 @@ def visualize_fim_F():
                 if "h =" in line:
                     h = float(line.split("=")[1].strip())
     
-    # Convert to float
+    # Conversion en flottant
     T_fim = np.zeros((n,m))
     for i in range(n):
         for j in range(m):
@@ -36,19 +36,19 @@ def visualize_fim_F():
                 T_fim[i,j] = float(matrix[i,j])
 
 
-    # Loading the speed matrix
+    # Chargement de la matrice de vitesse
     speed_file = "speed.txt"
     if not os.path.exists(speed_file):
-        print(f"Error: File {speed_file} not found")
+        print(f"Erreur: Fichier {speed_file} pas trouvé")
         return
 
     try:
         F = np.loadtxt(speed_file)
     except Exception as e:
-        print(f"Error: Unable to load {speed_file}: {e}")
+        print(f"Erreur: Impossible de charger {speed_file}: {e}")
         return
 
-    # Loading source coordinates
+    # Chargement des coordonnées des sources
     coord_file = "coords_source.txt"
     sources=[]
     if os.path.exists(coord_file):
@@ -59,21 +59,21 @@ def visualize_fim_F():
             else:
                 sources = coords
         except Exception as e:
-            print(f"Error: Unable to load the sources: {e}")
+            print(f"Erreur: UImpossible de charger les sources: {e}")
     else:
-        print(f"Error: File {coord_file} not found")
+        print(f"Erreur: Fichier {coord_file} pas trouvé")
 
 
-    # Creating the mesh grid
+    # Création de la grille
     x = np.arange(m) * h
     y = np.arange(n) * h
     X, Y = np.meshgrid(x,y)
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
 
-    # Figure 1: FIM solution
+    # Figure 1: solution de la FIM
     im1 = axes[0].pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
-    axes[0].set_title("FIM-distance map")
+    axes[0].set_title("FIM-carte de distance")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
     for (xs, ys) in sources:
@@ -82,9 +82,9 @@ def visualize_fim_F():
     axes[0].axis('equal')
     plt.colorbar(im1, ax=axes[0])
 
-    # Figure 2: Speed F
+    # Figure 2: Vitesse F
     im2 = axes[1].pcolormesh(X, Y, F, shading='nearest', cmap='viridis')
-    axes[1].set_title("Speed F")
+    axes[1].set_title("Vitesse F")
     axes[1].set_xlabel("X")
     axes[1].set_ylabel("Y")
     for (xs, ys) in sources:

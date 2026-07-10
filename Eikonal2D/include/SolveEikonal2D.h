@@ -3,57 +3,55 @@
 
 #include <float.h>
 
-#define EIKONAL_INF DBL_MAX // Infinite value for cells that have not been reached
+#define EIKONAL_INF DBL_MAX // Valeur infinie pour les cellules qui n'ont pas encore été atteintes
 #define EIKONAL_EPS 1e-12
 
 
 typedef struct{
-    int n,m;    // Grid dimensions
-    double h;   // Grid step (for both x and y)
-    double* F;  // Propagation speed
-    double* T;  // Time-of-arrival
+    int n,m;    // Dimensions de la grille
+    double h;   // Pas de la grille (égal pour x et y)
+    double* F;  // Vitesse de propagation
+    double* T;  // Temps d'arrivée
 }EikonalGrid;
 
 
-// Allocates and initializes a grid
+// Alloue et initialise une grille
 EikonalGrid* eikonal_grid_create(int n, int m, double h);
 
-// Clears the grid's memory
+// Nettoie la mémoire de la grille
 void eikonal_grid_free(EikonalGrid* g);
 
-// Sets the speed F for the entire grid (constant)
+// Définit la vitesse F (constante) pour l'ensemble de la grille
 void eikonal_grid_set_speed_constant(EikonalGrid* g, double F);
 
-// Sets the F-value cell by cell using an array
+// Définit la valeur F cellule par cellule à l'aide d'un tableau
 void eikonal_grid_set_speed(EikonalGrid* g, int i, int j, double F);
 
-// Gets the F-value cell by cell
+// Obtenir la valeur de la vitesse cellule par cellule
 double eikonal_grid_get_speed(const EikonalGrid* g, int i, int j);
 
-// Mark a cell as an obstacle
+// Marque une cellule comme un obstacle
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j);
 
-// Check if a source is inside a wall
+// Vérifie si une cellule est dans un mur
 int eikonal_grid_is_obstacle(const EikonalGrid* g, int i, int j);
 
-// Local solution of the 2D eikonal equation for cell (i,j)
-// Returns the new estimated T value (first-order upwind)
+// Solution locale de l'équation eikonale en 2D pour la cellule (i,j)
+// Renvoie la nouvelle valeur estimée de T 
 double eikonal_solve_local(const EikonalGrid* g, int i, int j);
 
-// Saves the T matrix to a text file (Numpy-compatible for visualization)
+// Enregistre la matrice T dans un fichier texte (compatible avec Numpy pour la visualisation)
 int eikonal_save_matrix(const EikonalGrid* g, const char* filename);
 
-// Saves the F values to a text file
+// Enregistre les valeurs de F dans un fichier texte
 int save_speed(const EikonalGrid* g, const char* filename);
 
-// Saves the tags with the closest sources
+// Enregistre les tags associées aux sources les plus proches
 int eikonal_save_tags(const EikonalGrid* g, const int* source_tag, const char* filename);
 
 
 
-// Utilities
-
-// Inline access T(i,j)
+// Accès inline T(i,j)
 static inline double eikonal_T(const EikonalGrid* g, int i, int j){
     if (i < 0 || j < 0 || i >= g->n || j >= g->m)
         return EIKONAL_INF;

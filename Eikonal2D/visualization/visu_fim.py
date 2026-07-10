@@ -5,7 +5,7 @@ from matplotlib.colors import ListedColormap
 import matplotlib.colors as mcolors
 
 def visualize_fim():
-    # Loading the FIM matrix
+    # Chargement de la matrice FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
         print(f"Error: File {fim_file} not found")
@@ -17,10 +17,10 @@ def visualize_fim():
         print(f"Error: Unable to load {fim_file}: {e}")
         return
 
-    #retrieving n, m, and h
+    # Chargement de n, m, et h
     n,m = matrix.shape
 
-    h = 1   # Default value
+    h = 1   # Valeur par défaut
     if os.path.exists("config.txt"):
         with open("config.txt", "r") as f:
             for line in f:
@@ -28,7 +28,7 @@ def visualize_fim():
                 if "h =" in line:
                     h = float(line.split("=")[1].strip())
     
-    # Convert to float
+    # Conversion en flottant
     T_fim = np.zeros((n,m))
     for i in range(n):
         for j in range(m):
@@ -37,7 +37,7 @@ def visualize_fim():
             else:
                 T_fim[i,j] = float(matrix[i,j])
 
-    # Loading source coordinates
+    # Chargement des coordonnées des sources
     coord_file = "coords_source.txt"
     sources=[]
     if os.path.exists(coord_file):
@@ -48,24 +48,24 @@ def visualize_fim():
             else:
                 sources = coords
         except Exception as e:
-            print(f"Error: Unable to load the sources: {e}")
+            print(f"Erreur: Impossible de charger les sources {e}")
     else:
-        print(f"Error: File {coord_file} not found")
+        print(f"Erreur: Fichier {coord_file} pas trouvé")
 
 
-    # Creating the mesh grid
+    # Création de la grille
     x = np.arange(m) * h
     y = np.arange(n) * h
     X, Y = np.meshgrid(x,y)
 
-    # Visualization
+    # Visualisation
     plt.figure(figsize=(10,8))
     plt.pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
-    plt.title("FIM-distance map")
+    plt.title("FIM-carte de distance")
     plt.xlabel("X")
     plt.ylabel("Y")
 
-    # Adding isocontours
+    # Ajout des isocontours
     T_min = np.nanmin(T_fim)
     T_max = np.nanmax(T_fim)
     nb_contours = 15
@@ -80,9 +80,9 @@ def visualize_fim():
     plt.axis('equal')
     plt.colorbar()
 
-    # Save
+    # Enregistrement
     plt.savefig("visualization_fim.png", dpi=400, bbox_inches="tight")
-    print("Figure saved: visualization_fim.png")
+    print("Figure enregistrée: visualization_fim.png")
 
     plt.show()
 

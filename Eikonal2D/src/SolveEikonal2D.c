@@ -24,7 +24,7 @@ EikonalGrid* eikonal_grid_create(int n, int m, double h){
         return NULL;
     }
 
-    // Default initialisation: speed = 1 and infinite time
+    // Initialisation par défaut: vitesse = 0 et durée infinie
     for (int k=0; k < n*m; k++){
         g->F[k] = 0;
         g->T[k] = EIKONAL_INF;
@@ -78,7 +78,7 @@ int eikonal_grid_is_obstacle(const EikonalGrid* g, int i, int j){
 double eikonal_solve_local(const EikonalGrid* g, int i, int j){
     double F_ij = g->F[i * g->m + j];
     
-    // If obstacle or zero speed -> T is infinite
+    // Si obstacle ou vitesse nulle -> T est infini
     if (F_ij <= EIKONAL_EPS)
         return EIKONAL_INF;
 
@@ -113,7 +113,7 @@ double eikonal_solve_local(const EikonalGrid* g, int i, int j){
             Ty = T;
     }
 
-    // Case where no neighbor is valid
+    // Cas où aucun voisin n'est valide
     if (Tx == DBL_MAX && Ty == DBL_MAX)
         return EIKONAL_INF;
 
@@ -122,10 +122,10 @@ double eikonal_solve_local(const EikonalGrid* g, int i, int j){
     double hF = h/F_ij;
 
     if (Tx == DBL_MAX)
-        // Only one neighbor available in y
+        // Un seul voisin disponible (en y)
         T_new = Ty + hF;
     else if (Ty == DBL_MAX)
-        // Only one neighbor available in x
+        // Un seul voisin disponible (en x)
         T_new = Tx + hF;
     else{
         double hF2 = hF * hF;
@@ -134,7 +134,7 @@ double eikonal_solve_local(const EikonalGrid* g, int i, int j){
 
         double T_tempo = 0.5 * (Tx + Ty + sqrt(disc));
         if (disc >= 0 && T_tempo >= fmax(Tx, Ty))
-            // Verified causal relationship
+            // Vérifie la causalité
             //T_new = 0.5 * (Tx + Ty + sqrt(disc));
             T_new = T_tempo;
         else{
@@ -176,7 +176,7 @@ int save_speed(const EikonalGrid* g, const char* filename){
 
     FILE* file = fopen(filename, "w");
     if (!file){
-        printf("Error: Unable to create %s\n", filename);
+        printf("Erreur: Impossible de créer %s\n", filename);
         return -1;
     }
 
@@ -199,7 +199,7 @@ int eikonal_save_tags(const EikonalGrid* g, const int* source_tag, const char* f
 
     FILE* file = fopen(filename, "w");
     if (!file){
-        printf("Error: Unable to create %s\n", filename);
+        printf("Erreur: Impossible de créer %s\n", filename);
         return -1;
     }
 

@@ -1,5 +1,5 @@
-// Generates a 2D grid with five random sources with one wall
-// Saves the time matrix to a .txt file
+// Génère une grille 2D contenant 5 sources aléatoires et un mur.
+// Enregistre la matrice des temps dans un fichier .txt
 
 #include "../include/FIM2D.h"
 
@@ -10,37 +10,37 @@
 #define EPSILON 1e-12
 
 int main(){
-    // Grid settings
+    // Paramètres de la grille
     int n = 200;
     int m = 200;
     double h = 1.0/n;
     int nsources = 5;
 
-    // Creating the grid
+    // Création de la grille
     EikonalGrid* g = eikonal_grid_create(n, m, h);
     if (!g){
-        printf("Error: Unable to create the grid.\n");
+        printf("Erreur: Impossible de créer la grille.\n");
         return 1;
     }
 
-    // Constant speed of 1
+    // Vitesse constante égale à 1
     eikonal_grid_set_speed_constant(g, 1.0);
 
-    // Vertical wall in the center
+    // Mur vertical au centre
     int wall_x = m/2;
     for (int i=0; i < n; i++){
         eikonal_grid_set_obstacle(g, i, wall_x);
     }
 
-    // File for storing source information
+    // Fichier pour stocker les informations sur la source
     FILE* coord_file = fopen("coords_source.txt", "w");
     if (!coord_file){
-        printf("Error: Unable to create the coord_source.txt file.\n");
+        printf("Erreur: Impossible de créer le fichier coord_source.txt.\n");
         eikonal_grid_free(g);
         return 1;
     }
 
-    // Generation of the random sources
+    // Génération des sources de façon aléatoire
     srand(time(NULL));
     int* src_i = (int*)malloc(nsources * sizeof(int));
     int* src_j = (int*)malloc(nsources * sizeof(int));
@@ -49,7 +49,7 @@ int main(){
         src_i[s] = rand() % n;
         src_j[s] = rand() % m;
 
-        // Avoid placing the sources in the wall
+        // On évite de placer les sources dans le mur
         while (src_j[s] == wall_x)
             src_j[s] = rand() % m;
 
@@ -60,12 +60,12 @@ int main(){
 
     fclose(coord_file);
 
-    // Execution of FIM
+    // Exécution de la FIM
     fim_solve(g, src_i, src_j, nsources, EPSILON, -1.0);
 
     eikonal_save_matrix(g, "matrix_fim.txt");
 
-    // Cleaning
+    // Nettoyage
     free(src_i);
     free(src_j);
     eikonal_grid_free(g);

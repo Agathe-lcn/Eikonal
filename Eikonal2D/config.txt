@@ -1,14 +1,12 @@
-n = 300
-m = 300
-h = 0.00333
+n = 200
+m = 200
+h = 0.005
 
-# one per line
+# une par ligne
 sources:
-50 10
-150 50
-150 180
-50 250
-280 250
+30 25 
+180 100
+100 170
 
-# one per line (col_start col_end row_start row_end)
+# un par ligne (colonne_de_départ colonne_de_fin ligne_de_départ ligne_de_fin)
 walls:

@@ -5,10 +5,10 @@
 #include <stdio.h>
 #include <time.h>
 
-// Double-linked list for narrowband
+// Liste doublement chaînée
 
 typedef struct Node{
-    int index;  // Index i * m + j
+    int index;  // Indice i * m + j
     struct Node* prev;
     struct Node* next;
 }Node;
@@ -17,7 +17,7 @@ typedef struct{
     Node head;
     Node** index_to_node;
     int ncell;  // ncell = n*m
-    int size;   // Number of items currently in the list
+    int size;   // Nombre d'éléments dans la liste
 }NodeList;
 
 static NodeList* list_create(int ncell){
@@ -55,17 +55,17 @@ static void list_insert_before(NodeList* l, int index, Node* node){
     l->size++;
 }
 
-// Insert index at the beginning of the list
+// Insére un indice au début de la liste
 static void list_push_front(NodeList* l, int index){
     list_insert_before(l, index, l->head.next);
 }
 
-// Insert index at the end of the list
+// Insére un indice à la fin de la liste
 static void list_push_back(NodeList* l, int index){
     list_insert_before(l, index, &l->head);
 }
 
-// Removes the node with index from the list
+// Supprime le noeud qui contient l'indice 'index' de la liste
 static void list_remove(NodeList* l, int index){
     Node* node = l->index_to_node[index];
     if (!node)
@@ -78,7 +78,7 @@ static void list_remove(NodeList* l, int index){
     l->size--;
 }
 
-// Retrieves and returns the first item in the list
+// Récupère et renvoie le premier élément de la liste
 static int list_pop_front(NodeList* l){
     if (l->size == 0)
         return -1;
@@ -97,7 +97,7 @@ static inline int list_is_empty(const NodeList* l){
     return l->size == 0;
 }
 
-// Check whether a neighbor exists and can be improved
+// Vérifie si un voisin existe et peut être amélioré
 static inline int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon){
     if (index < 0)
         return 0;
@@ -110,7 +110,7 @@ static inline int is_neighbor_updatable(const EikonalGrid* g, int index, double 
     return 0;
 }
 /*
-// Add a neighbor to the list if it isn't already on it
+// Ajoute un voisin à la liste s'il n'y est pas déjà
 static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int index, double T_new, Node* current_node, double epsilon){
     if (index < 0)
         return;
@@ -123,7 +123,7 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
 }*/
 
 
-// Check if a cell is within the radius
+// Vérifie si une cellule est dans le rayon
 static int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j, int source_tag, double max_radius){
     if (max_radius <= 0.0)
         return 1;
@@ -135,7 +135,7 @@ static int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j
 }
 
 
-// Counting the cells in the ray
+// Compte le nombre de cellules dans le rayon
 static int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const int* src_j, int ns, double max_radius) {
     if (max_radius <= 0.0)
         return g->n * g->m;
@@ -187,20 +187,20 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     int m = g->m;
     int ncell = n * m;
 
-    // Tag allocation and initialization
+    // Alloue et initialise le tag
     int* source_tag = (int*)malloc(ncell * sizeof(int));
     if (!source_tag){
-        printf("Error: Unable to allocate memory for source tags\n");
+        printf("Erreur: Impossible d'allouer de la mémoire pour les tags\n");
         return;
     }
     for (int k = 0; k < ncell; k++)
         source_tag[k] = -1;
 
-    // Initialization: set all cells to +inf
+    // Initialisation: définit toutes les celulles à +inf
     for (int k=0; k < ncell; k++)
         g->T[k] = EIKONAL_INF;
 
-    // Initializing sources
+    // Initialisation des sources
     for (int s=0; s < ns; s++){
         int i = src_i[s];
         int j = src_j[s];
@@ -211,21 +211,21 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         }
     }
 
-    // Creation of Narrow Band
+    // Création de la Narrowband
     NodeList* narrow = list_create(ncell);
     if (!narrow) {
         free(source_tag);
         return;
     }
 
-    // Add the neighbors of the sources to the active list
+    // Ajoute les voisins des sources à nla Narrowband
     for (int s=0; s < ns; s++){
         int i = src_i[s];
         int j = src_j[s];
         if (i < 0 || i >= n || j < 0 || j >= m)
             continue;
 
-        // The 4 neighbors tour
+        // Visite des 4 voisins
         int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
         for (int k=0; k<4; k++){
             int ni = neighbors[k][0];
@@ -234,7 +234,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
             if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                 int index = ni * m + nj;
 
-                // Check whether the neighbor is within the circle with radius max_seuil and center s
+                // Vérifie si le voisin se trouve à l'intérieur du cercle de rayon max_seuil et de centre s
                 if (!is_in_radius(src_i, src_j, ns, ni, nj, s, max_radius))
                     continue;
 
@@ -255,13 +255,13 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     int total_cells = 0;
     int cells_processed = 0;
 
-    // Counting the cells in the ray
+    // Compte le nombre de cellules dans le rayon
     if (!compute_all) 
         total_cells = count_cells_in_radius(g, src_i, src_j, ns, max_radius);
 
-    // Main loop
+    // Boucle principale
     while(!list_is_empty(narrow)) {
-        // Remove the first item of the list
+        // Enlève le premier élément de la liste
         int index = list_pop_front(narrow);
         if (index < 0)
             continue;
@@ -269,11 +269,11 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         int i = index / m;
         int j = index % m;
 
-        // Check the ray
+        // Vérifie le rayon
         if (!compute_all && !is_in_radius(src_i, src_j, ns, i, j, source_tag[index], max_radius))
             continue; 
 
-        // Increment the counter
+        // Incrémente le compteur
         if (!compute_all && (g->T[index] > 0 || source_tag[index] < 0)) {
             cells_processed++;
         }
@@ -283,7 +283,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         double diff = fabs(T_new - T_old);
 
         if (diff <= epsilon) {
-            // The cell has converged: we freeze it and its neighbors that can be improved are added to the list
+            // La cellule a convergé: on la fige et ses voisins susceptibles d'être améliorés sont ajoutés à la liste
             int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
             for (int k=0; k < 4; k++){
                 int ni = neighbors[k][0];
@@ -291,11 +291,11 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                     int index_neighbor = ni * m + nj;
 
-                    // Check the ray
+                    // Vérifie le rayon
                     if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
                         continue;
 
-                    // Check if the neighbor can be improved
+                    // Vérifie si l evoisin peut être amélioré
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
                     if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
                         g->T[index_neighbor] = T_neighbor_new;
@@ -306,13 +306,13 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 }
             }
         } else {
-            // The cell has not converged: update its value
+            // La cellule n'a pas convergé: mise à jour de sa valeur
             g->T[index] = T_new;
 
-            // The cell is reinserted into the list (it will be recalculated)
+            // La cellule est réinsérée dans la liste (elle sera recalculée)
             list_push_front(narrow, index);
 
-            // We go through the four neighbors to add them if they can be upgraded
+            // Visite des 4 voisins pour les ajouter s'ils peuvent être améliorés
             int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
             for (int k=0; k < 4; k++){
                 int ni = neighbors[k][0];
@@ -320,11 +320,11 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                     int index_neighbor = ni * m + nj;
 
-                    // Check the ray
+                    // Vérifie le rayon
                     if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
                         continue;
 
-                    // Check if the neighbor can be improved
+                    // Vérifie si le voisin peut être amélioré
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
                     if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
                         g->T[index_neighbor] = T_neighbor_new;
@@ -336,23 +336,23 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
             }
         }
 
-        // Check the shutdown condition
+        // Vérifie les conditions d'arrêt
         if (!compute_all && cells_processed >= total_cells)
             break;
     }
 
-    // Saving tags
+    // Enregistrement des tags
     eikonal_save_tags(g, source_tag, "source_tags.txt");
 
     clock_t end_time = clock();
     double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
 
     if (compute_all)
-        printf("FIM finished (no threshold) in %.6f seconds\n", time);
+        printf("FIM terminée (sans seuil) en %.6f secondes\n", time);
     else
-        printf("FIM finished (threshold): %d cells processed in %.6f seconds\n", cells_processed, time);
+        printf("FIM terminée (avec seuil): %d cellules traitées en %.6f secondes\n", cells_processed, time);
 
-    // Cleaning
+    // Nettoyage
     list_free(narrow);
     free(source_tag);
 }

@@ -3,20 +3,20 @@ import matplotlib.pyplot as plt
 import os
 
 def compute_error():
-    # Settings
+    # Paramètres
     n = 200
     m = 200
     length = 1.0
     h = length / n
 
-    # Creating the figure with 2 subplots
+    # Creation de la figure avec 2 subplots
     fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 
-    # Loading the matrix calculated by FIM
+    # Chargement de la matrice calculée par la FIM
     filename = "matrix_fim.txt"
     matrix = np.loadtxt(filename, dtype=str)
 
-    # Conversion to float
+    # Conversion en flottant
     T_fim = np.zeros((n,m))
     for i in range(n):
         for j in range(m):
@@ -25,27 +25,27 @@ def compute_error():
             else:
                 T_fim[i,j] = float(matrix[i,j])
 
-    # Loading source coordinates
+    # Chargement des coordonnées des sources
     coord_file = "coords_source.txt"
     if not os.path.exists(coord_file):
-        raise FileNotFoundError(f"{coord_file} not found")
+        raise FileNotFoundError(f"{coord_file} pas trouvé")
 
-    # Load all sources
+    # Chargement de toutes les sources
     coords = np.loadtxt(coord_file)
     if coords.ndim == 1:
-        # Single source
+        # Source unique
         sources = [coords]
     else:
-        # Multiple sources
+        # Plusieurs sources
         sources = coords
 
-    # Euclidean distance
+    # Distance euclidienne
     T_euclid = np.zeros((n,m))
     for i in range(n):
         y = i * h 
         for j in range(m):
             x = j * h
-            # Calculate distance to each source and take the minimum
+            # Calcule la distance par rapport à chaque source et garde la plus petite
             min_dist = np.inf
             for (x_src, y_src) in sources:
                 dx = x - x_src
@@ -55,10 +55,10 @@ def compute_error():
                     min_dist = dist
             T_euclid[i,j] = min_dist
 
-    # Error = | T_euclid - T_fim |
+    # Erreur = | T_euclid - T_fim |
     error = np.abs(T_euclid - T_fim)
     
-    # Statistics
+    # Statistiques
     valid_error = error[~np.isnan(error)]
     print("\nError statistics |T_euclid - T_fim|\n")
     print(f"Maximum error: {np.max(valid_error):.6e}")
@@ -66,17 +66,17 @@ def compute_error():
     print(f"Average error: {np.mean(valid_error):.6e}")
     print(f"Median error: {np.median(valid_error):.6e}")
 
-    # Visualization
+    # Visualisation
     x = np.linspace(0, length, m)
     y = np.linspace(0, length, n)
     X, Y = np.meshgrid(x,y)
 
-    # Figure 1: FIM solution
+    # Figure 1: solution de la FIM
     im1 = axes[0].pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
     axes[0].set_title("FIM-distance map")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
-    # Plot all sources
+    # Affiche toutes les sources
     for (x_src, y_src) in sources:
         axes[0].scatter(x_src, y_src, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "")
     if len(sources) > 1:
@@ -85,12 +85,12 @@ def compute_error():
     axes[0].axis('equal')
     plt.colorbar(im1, ax=axes[0])
 
-    # Figure 2: Error | T_euclid - T_fim |
+    # Figure 2: Erreur | T_euclid - T_fim |
     im2 = axes[1].pcolormesh(X, Y, error, shading='nearest', cmap='hot')
     axes[1].set_title("FIM-error")
     axes[1].set_xlabel("X")
     axes[1].set_ylabel("Y")
-    # Plot all sources
+    # Affiche toutes les sources
     for (x_src, y_src) in sources:
         axes[1].scatter(x_src, y_src, color='cyan', s=10, marker='.', label="Source" if len(sources) == 1 else "")
     if len(sources) > 1:
