@@ -131,12 +131,24 @@ double eikonal_solve_local(const EikonalGrid* g, int i, int j){
         double hF2 = hF * hF;
         double diff = Tx - Ty;
         double disc = 2.0 * hF2 - diff * diff;
-
+/*
         double T_tempo = 0.5 * (Tx + Ty + sqrt(disc));
         if (disc >= 0 && T_tempo >= fmax(Tx, Ty))
             // Vérifie la causalité
             //T_new = 0.5 * (Tx + Ty + sqrt(disc));
-            T_new = T_tempo;
+            T_new = T_tempo;*/
+        
+        if (disc >= 0){
+            double T_tempo = 0.5 * (Tx + Ty + sqrt(disc));
+            if (T_tempo >= fmax(Tx,Ty))
+                T_new = T_tempo;
+            else{
+                if (Tx < Ty)
+                    T_new = Tx + hF;
+                else
+                    T_new = Ty + hF;
+            }
+        }
         else{
             if (Tx < Ty)
                 T_new = Tx + hF;

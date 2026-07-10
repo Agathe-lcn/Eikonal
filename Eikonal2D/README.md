@@ -23,14 +23,13 @@ Compiler l'exécutable `generate_grid` du dossier `grids/`:
 make
 ```
 
-### Exécution rapide
+### Exécution
 
 ```bash
 make run
 ```
 
-Cette commande compile le projet puis exécute `generate_grid` avec le
-fichier `config.txt`.
+Cette commande compile le projet puis exécute `generate_grid` avec le fichier `config.txt`.
 
 ### Nettoyage
 
