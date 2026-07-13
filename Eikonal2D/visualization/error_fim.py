@@ -76,6 +76,12 @@ def compute_error():
     axes[0].set_title("FIM-distance map")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
+    # Ajout des isocontours
+    T_min = np.nanmin(T_fim)
+    T_max = np.nanmax(T_fim)
+    nb_contours = 15
+    levels = np.linspace(T_min, T_max, nb_contours)
+    axes[0].contour(X, Y, T_fim, levels, colors = 'white', linewidths=0.8, alpha=0.7)
     # Affiche toutes les sources
     for (x_src, y_src) in sources:
         axes[0].scatter(x_src, y_src, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "")

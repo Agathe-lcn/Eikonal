@@ -17,27 +17,47 @@ pip install numpy matplotlib
 
 ## Compilation
 
-Compiler l'exécutable `generate_grid` du dossier `grids/`:
+Compiler tours les exécutables:
+
+```bash
+make all
+```
+
+ou bien
 
 ```bash
 make
 ```
 
+Compiler un exécutable spécifique:
+
+```bash
+make generate
+make 1source
+make 5sources
+```
+
 ### Exécution
+
+Exécuter `generate_grid` avec `config.txt`
 
 ```bash
 make run
 ```
 
-Cette commande compile le projet puis exécute `generate_grid` avec le fichier `config.txt`.
+Exécuter manuellement un programme spécifique:
+
+```bash
+./bin/generate_grid config.txt
+./bin/1_source config.txt
+./bin/5_sources_1_wall config.txt
+```
 
 ### Nettoyage
 
 ```bash
 make clean
 ```
-
-Supprime le dossier `bin/`.
 
 ## Utilisation
 

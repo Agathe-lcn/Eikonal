@@ -218,7 +218,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         return;
     }
 
-    // Ajoute les voisins des sources à nla Narrowband
+    // Ajoute les voisins des sources à la Narrowband
     for (int s=0; s < ns; s++){
         int i = src_i[s];
         int j = src_j[s];

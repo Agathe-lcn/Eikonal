@@ -8,14 +8,18 @@ BIN_DIR = bin
 
 SRC_COMMON = $(SRC_DIR)/FIM2D.c $(SRC_DIR)/SolveEikonal2D.c
 
-GRID_BINS = $(BIN_DIR)/generate_grid $(BIN_DIR)/1_source $(BIN_DIR)/5_sources_1_wall
+EXECS = $(BIN_DIR)/generate_grid $(BIN_DIR)/1_source $(BIN_DIR)/5_sources_1_wall
 
-.PHONY: all dirs tests clean run
+generate: $(BIN_DIR)/generate_grid
+1source: $(BIN_DIR)/1_source
+5sources: $(BIN_DIR)/5_sources_1_wall
 
-all: dirs $(BIN_DIR)/generate_grid
+.PHONY: all dirs clean run
+
+all: dirs $(EXECS)
 
 dirs:
-	mkdir -p $(BIN_DIR) $(OUTPUT_DIR)
+	mkdir -p $(BIN_DIR)
 
 $(BIN_DIR)/generate_grid: $(GRID_DIR)/generate_grid.c $(SRC_COMMON) | dirs
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)

@@ -74,7 +74,9 @@ def visualize_fim():
 
     # Sources
     for (xs,ys) in sources:
-        plt.scatter(xs, ys, color='red', s=10, marker='.', edgecolors='red', linewidth=1)
+        plt.scatter(xs, ys, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "", edgecolors='red', linewidth=1)
+    if len(sources) > 1:
+        plt.scatter([], [], color='red', s=10, marker='.', label="Sources")
     
     plt.legend()
     plt.axis('equal')
