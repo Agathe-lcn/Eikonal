@@ -36,4 +36,7 @@ typedef struct{
 // Crée la topologie 1D en bandes
 MPIDomain* topology_create(int n, int m, double h, int overlap);
 
+// Libère la topologie MPI
+void topology_free(MPIDomain* domain);
+
 #endif /* FIM2D_MPI_H */

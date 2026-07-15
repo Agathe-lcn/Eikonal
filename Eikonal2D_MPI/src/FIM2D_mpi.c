@@ -101,3 +101,11 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
 
     return domain;
 }
+
+
+void topology_free(MPIDomain* domain){
+    if (!domain)
+        return;
+
+    free(domain);
+}
