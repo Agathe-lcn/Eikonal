@@ -39,7 +39,7 @@ make 5sources
 
 ### Exécution
 
-Exécuter et compiler les 3 exécutables:
+compiler et exécuter les 3 exécutables:
 
 ```bash
 make run
