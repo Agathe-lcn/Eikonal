@@ -177,6 +177,33 @@ static int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const i
 }
 
 
+// Détermine le tag de la source qui a mis à jour la valeur T en (i,j)
+static int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, int m){
+    int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
+    int tag = -1;
+    double T_min = EIKONAL_INF;
+
+    for (int k = 0; k < 4; k++){
+        int ni = neighbors[k][0];
+        int nj = neighbors[k][1];
+
+        if (ni < 0 || ni >= n || nj < 0 || nj >= m)
+            continue;
+
+        int index_neighbor = ni * m + nj;
+        if (source_tag[index_neighbor] < 0)
+            continue;
+
+        if (g->T[index_neighbor] < T_min){
+            T_min = g->T[index_neighbor];
+            tag = source_tag[index_neighbor];
+        }
+    }
+
+    return tag;
+}
+
+
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius) {
     if (!g || !src_i || !src_j || ns <= 0)
         return;
@@ -299,7 +326,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
                     if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
                         g->T[index_neighbor] = T_neighbor_new;
-                        source_tag[index_neighbor] = source_tag[index];
+                        source_tag[index_neighbor] = find_tag(g, source_tag, ni, nj, n, m);
                         if (!list_contains(narrow, index_neighbor))
                             list_push_back(narrow, index_neighbor);
                     }
@@ -308,6 +335,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         } else {
             // La cellule n'a pas convergé: mise à jour de sa valeur
             g->T[index] = T_new;
+            source_tag[index] = find_tag(g, source_tag, i, j, n, m);
 
             // La cellule est réinsérée dans la liste (elle sera recalculée)
             list_push_front(narrow, index);
@@ -328,7 +356,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                     double T_neighbor_new = eikonal_solve_local(g, ni, nj);
                     if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
                         g->T[index_neighbor] = T_neighbor_new;
-                        source_tag[index_neighbor] = source_tag[index];
+                        source_tag[index_neighbor] = find_tag(g, source_tag, ni, nj, n, m);
                         if (!list_contains(narrow, index_neighbor))
                             list_push_back(narrow, index_neighbor);
                     }
