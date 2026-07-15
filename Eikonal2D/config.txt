@@ -4,9 +4,8 @@ h = 0.005
 
 # une par ligne
 sources:
-30 25 
-180 100
-100 170
+50 10
+150 50
 
 # un par ligne (colonne_de_départ colonne_de_fin ligne_de_départ ligne_de_fin)
 walls:

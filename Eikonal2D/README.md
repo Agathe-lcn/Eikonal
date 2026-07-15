@@ -39,7 +39,7 @@ make 5sources
 
 ### Exécution
 
-Exécuter `generate_grid` avec `config.txt`
+Exécuter et compiler les 3 exécutables:
 
 ```bash
 make run
@@ -49,8 +49,8 @@ Exécuter manuellement un programme spécifique:
 
 ```bash
 ./bin/generate_grid config.txt
-./bin/1_source config.txt
-./bin/5_sources_1_wall config.txt
+./bin/1_source
+./bin/5_sources_1_wall
 ```
 
 ### Nettoyage
