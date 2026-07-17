@@ -5,22 +5,9 @@
 #include <stdio.h>
 #include <time.h>
 
-// Liste doublement chaînée
+// Fonctions pour la liste doublement chaînée
 
-typedef struct Node{
-    int index;  // Indice i * m + j
-    struct Node* prev;
-    struct Node* next;
-}Node;
-
-typedef struct{
-    Node head;
-    Node** index_to_node;
-    int ncell;  // ncell = n*m
-    int size;   // Nombre d'éléments dans la liste
-}NodeList;
-
-static NodeList* list_create(int ncell){
+NodeList* list_create(int ncell){
     NodeList* l = (NodeList *)malloc(sizeof(NodeList));
     l->index_to_node = (Node **)calloc(ncell, sizeof(Node *));
     l->ncell = ncell;
@@ -30,7 +17,7 @@ static NodeList* list_create(int ncell){
     return l;
 }
 
-static void list_free(NodeList *l){
+void list_free(NodeList *l){
     for (int k=0; k < l->ncell; k++){
         if (l->index_to_node[k])
             free(l->index_to_node[k]);
@@ -39,9 +26,8 @@ static void list_free(NodeList *l){
     free(l);
 }
 
-// Insert index into the list before the 'node' node
-static void list_insert_before(NodeList* l, int index, Node* node){
-    // ALready present
+void list_insert_before(NodeList* l, int index, Node* node){
+    // Déjà présent
     if (l->index_to_node[index])
         return;
 
@@ -55,18 +41,15 @@ static void list_insert_before(NodeList* l, int index, Node* node){
     l->size++;
 }
 
-// Insére un indice au début de la liste
-static void list_push_front(NodeList* l, int index){
+void list_push_front(NodeList* l, int index){
     list_insert_before(l, index, l->head.next);
 }
 
-// Insére un indice à la fin de la liste
-static void list_push_back(NodeList* l, int index){
+void list_push_back(NodeList* l, int index){
     list_insert_before(l, index, &l->head);
 }
 
-// Supprime le noeud qui contient l'indice 'index' de la liste
-static void list_remove(NodeList* l, int index){
+void list_remove(NodeList* l, int index){
     Node* node = l->index_to_node[index];
     if (!node)
         return;
@@ -78,8 +61,7 @@ static void list_remove(NodeList* l, int index){
     l->size--;
 }
 
-// Récupère et renvoie le premier élément de la liste
-static int list_pop_front(NodeList* l){
+int list_pop_front(NodeList* l){
     if (l->size == 0)
         return -1;
     
@@ -89,16 +71,15 @@ static int list_pop_front(NodeList* l){
     return index;
 }
 
-static inline int list_contains(const NodeList* l, int index){
+int list_contains(const NodeList* l, int index){
     return l->index_to_node[index] != NULL;
 }
 
-static inline int list_is_empty(const NodeList* l){
+int list_is_empty(const NodeList* l){
     return l->size == 0;
 }
 
-// Vérifie si un voisin existe et peut être amélioré
-static inline int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon){
+int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon){
     if (index < 0)
         return 0;
 
@@ -123,8 +104,7 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
 }*/
 
 
-// Vérifie si une cellule est dans le rayon
-static int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j, int source_tag, double max_radius){
+int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j, int source_tag, double max_radius){
     if (max_radius <= 0.0)
         return 1;
 
@@ -135,8 +115,7 @@ static int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j
 }
 
 
-// Compte le nombre de cellules dans le rayon
-static int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const int* src_j, int ns, double max_radius) {
+int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const int* src_j, int ns, double max_radius) {
     if (max_radius <= 0.0)
         return g->n * g->m;
     
@@ -177,8 +156,7 @@ static int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const i
 }
 
 
-// Détermine le tag de la source qui a mis à jour la valeur T en (i,j)
-static int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, int m){
+int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, int m){
     int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
     int tag = -1;
     double T_min = EIKONAL_INF;
