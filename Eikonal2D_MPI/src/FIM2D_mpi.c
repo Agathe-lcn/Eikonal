@@ -27,28 +27,39 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPI_Comm_rank(MPI_COMM_WORLD, &(rank));
     MPI_Comm_size(MPI_COMM_WORLD, &(nproc));
 
+    // Test
+    printf("[rank %d]: n = %d, m = %d, h = %f, overlap = %d, nproc = %d \n", rank, n, m, h, overlap, nproc);
+    fflush(stdout);
+
     int err = 0;
 
     // Création de la topologie cartésienne adaptée au nombre de processus
-    nproc_per_dim[1] = nproc;
+    nproc_per_dim[0] = nproc;
 
     MPI_Comm GRID_COMM;
 
     err = MPI_Cart_create(MPI_COMM_WORLD, ndims, nproc_per_dim, periods_per_dim, 0, &GRID_COMM);
 
-    if (rank == 0){
-        printf("\n dims: %d, nbproc: %d \n", ndims, nproc_per_dim[0]);
-        fflush(stdout);
-    }
+    // Test
+    printf("[rank %d]: MPI_Carte_create ->err = %d \n", rank, err);
+    fflush(stdout);
 
     int proc_coords;
     // Récupérer les coordonnées du rang dans la topologie
     err = MPI_Cart_coords(GRID_COMM, rank, ndims, &proc_coords);
 
+    // Test 
+    printf("[rank %d] proc_coords=%d (err=%d)\n", rank, proc_coords, err);
+    fflush(stdout);
+
     // Calcul des rangs des voisins avec MPI_Cart_shift
     int up_rank;
     int down_rank;
     MPI_Cart_shift(GRID_COMM, 0, 1, &up_rank, &down_rank);
+
+    // Test
+    printf("[rank %d] up_rank=%d down_rank=%d\n", rank, up_rank, down_rank);
+    fflush(stdout);
 
     // Distribution équilibrée des lignes entre les processus
     int Q = n / nproc;
@@ -64,6 +75,10 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
         n_owned = Q;
         i_start = R * (Q+1) + (proc_coords - R) * Q;
     }
+
+    // Test
+    printf("[rank %d] Q=%d R=%d n_owned=%d i_start=%d\n", rank, Q, R, n_owned, i_start);
+    fflush(stdout);
 
     domain->comm = GRID_COMM;
     MPI_Comm_dup(GRID_COMM, &domain->exch_comm);
@@ -100,6 +115,10 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->n_overlap = domain->i_end_overlap - domain->i_start_overlap + 1;
     domain->up_rank = up_rank;
     domain->down_rank = down_rank;
+
+    // Test
+    printf("[rank %d] top_ghost=%d bottom_ghost=%d i_owned=[%d,%d] i_overlap=[%d,%d] n_overlap=%d\n", rank, domain->top_ghost, domain->bottom_ghost, domain->i_owned_start, domain->i_owned_end, domain->i_start_overlap, domain->i_end_overlap, domain->n_overlap);
+    fflush(stdout);
 
     return domain;
 }
