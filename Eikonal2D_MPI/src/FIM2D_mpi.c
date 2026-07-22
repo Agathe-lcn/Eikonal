@@ -154,14 +154,19 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     double* recv_down = NULL;
 
 
-
     // Pour l'échange avec le voisin du dessus, on vérifie que le processus n'est pas tout en haut, que le recouvrement est strictement positif et que son sous-domaine possède suffisamment de lignes pour l'échange de données
     int do_up = domain->up_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band;
     if (do_up){
         send_up = (double*)malloc(band * m * sizeof(double));
         recv_up = (double*)malloc(band * m * sizeof(double));
         memcpy(send_up, g_processus->T, band * m * sizeof(double));
+
+        printf("[rank %d] Sendrecv avec up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, band*m);
+        fflush(stdout);
+
+        MPI_Sendrecv(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
     }
+
 
     // Pour l'échange avec le voisin du dessous, on vérifie que le processus n'est pas tout en bas, que le recouvrement est strictement positif et que son sous domaine possède suffisamment de lignes pour l'échange de données
     int do_down = domain->down_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band;
@@ -170,81 +175,13 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         send_down = (double*)malloc(band * m * sizeof(double));
         recv_down = (double*)malloc(band * m * sizeof(double));
         memcpy(send_down, g_processus->T + beginning, band * m * sizeof(double));
+
+        printf("[rank %d] Sendrecv avec down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, band*m);
+        fflush(stdout);
+
+        MPI_Sendrecv(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
-    // Pour éviter les deadlocks, ordonnancement pair et impair
-    // Si le rang du processus est pair alors il envoie puis il reçoit
-    // Si le rang du processus est impair, alors il reçoit puis il envoie
-
-    // 1er cas: le rang est pair
-    if (domain->proc_coord % 2 == 0){
-        if (do_up){
-            // Test
-            printf("[rank %d] (pair) Send vers up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, band*m);
-            fflush(stdout);
-
-            MPI_Send(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm);
-        }
-
-        if (do_down){
-            // Test
-            printf("[rank %d] (pair) Send vers down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, band*m);
-            fflush(stdout);
-
-            MPI_Send(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm);
-        }
-
-        if (do_up){
-            // Test
-            printf("[rank %d] (pair) Recv depuis up_rank=%d\n", domain->rank, domain->up_rank);
-            fflush(stdout);
-
-            MPI_Recv(recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
-        }
-
-        if (do_down){
-            // Test
-            printf("[rank %d] (pair) Recv depuis down_rank=%d\n", domain->rank, domain->down_rank);
-            fflush(stdout);
-
-            MPI_Recv(recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
-        }
-    }
-
-    //2e cas: le rang est impair
-    else{
-        if (do_up){
-            // Test
-            printf("[rank %d] (impair) Recv depuis up_rank=%d\n", domain->rank, domain->up_rank);
-            fflush(stdout);
-
-            MPI_Recv(recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
-        }
-
-        if (do_down){
-            // Test
-            printf("[rank %d] (impair) Recv depuis down_rank=%d\n", domain->rank, domain->down_rank);
-            fflush(stdout);
-
-            MPI_Recv(recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
-        }
-
-        if (do_up){
-            // Test
-            printf("[rank %d] (impair) Send vers up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, band*m);
-            fflush(stdout);
-
-            MPI_Send(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm);
-        }
-
-        if (do_down){
-            // Test
-            printf("[rank %d] (impair) Send vers down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, band*m);
-            fflush(stdout);
-
-            MPI_Send(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm);
-        }
-    }
 
     // Test
     printf("[rank %d] échanges Send/Recv termines\n", domain->rank);
