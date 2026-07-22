@@ -28,8 +28,8 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPI_Comm_size(MPI_COMM_WORLD, &(nproc));
 
     // Test
-    printf("[rank %d]: n = %d, m = %d, h = %f, overlap = %d, nproc = %d \n", rank, n, m, h, overlap, nproc);
-    fflush(stdout);
+    //printf("[rank %d]: n = %d, m = %d, h = %f, overlap = %d, nproc = %d \n", rank, n, m, h, overlap, nproc);
+    //fflush(stdout);
 
     int err = 0;
 
@@ -41,16 +41,16 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     err = MPI_Cart_create(MPI_COMM_WORLD, ndims, nproc_per_dim, periods_per_dim, 0, &GRID_COMM);
 
     // Test
-    printf("[rank %d]: MPI_Carte_create ->err = %d \n", rank, err);
-    fflush(stdout);
+    //printf("[rank %d]: MPI_Carte_create ->err = %d \n", rank, err);
+    //fflush(stdout);
 
     int proc_coords;
     // Récupérer les coordonnées du rang dans la topologie
     err = MPI_Cart_coords(GRID_COMM, rank, ndims, &proc_coords);
 
     // Test 
-    printf("[rank %d] proc_coords=%d (err=%d)\n", rank, proc_coords, err);
-    fflush(stdout);
+    //printf("[rank %d] proc_coords=%d (err=%d)\n", rank, proc_coords, err);
+    //fflush(stdout);
 
     // Calcul des rangs des voisins avec MPI_Cart_shift
     int up_rank;
@@ -58,8 +58,8 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPI_Cart_shift(GRID_COMM, 0, 1, &up_rank, &down_rank);
 
     // Test
-    printf("[rank %d] up_rank=%d down_rank=%d\n", rank, up_rank, down_rank);
-    fflush(stdout);
+    //printf("[rank %d] up_rank=%d down_rank=%d\n", rank, up_rank, down_rank);
+    //fflush(stdout);
 
     // Distribution équilibrée des lignes entre les processus
     int Q = n / nproc;
@@ -77,8 +77,8 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     }
 
     // Test
-    printf("[rank %d] Q=%d R=%d n_owned=%d i_start=%d\n", rank, Q, R, n_owned, i_start);
-    fflush(stdout);
+    //printf("[rank %d] Q=%d R=%d n_owned=%d i_start=%d\n", rank, Q, R, n_owned, i_start);
+    //fflush(stdout);
 
     domain->comm = GRID_COMM;
     MPI_Comm_dup(GRID_COMM, &domain->exch_comm);
@@ -117,8 +117,8 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->down_rank = down_rank;
 
     // Test
-    printf("[rank %d] top_ghost=%d bottom_ghost=%d i_owned=[%d,%d] i_overlap=[%d,%d] n_overlap=%d\n", rank, domain->top_ghost, domain->bottom_ghost, domain->i_owned_start, domain->i_owned_end, domain->i_start_overlap, domain->i_end_overlap, domain->n_overlap);
-    fflush(stdout);
+    //printf("[rank %d] top_ghost=%d bottom_ghost=%d i_owned=[%d,%d] i_overlap=[%d,%d] n_overlap=%d\n", rank, domain->top_ghost, domain->bottom_ghost, domain->i_owned_start, domain->i_owned_end, domain->i_start_overlap, domain->i_end_overlap, domain->n_overlap);
+    //fflush(stdout);
 
     return domain;
 }
@@ -140,8 +140,11 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     int band = 2*overlap;   // Band est la largeur de la zone en commun entre un processus et son voisin
     int any_change = 0;
 
+    printf("[rank %d] exchange_overlap : m=%d overlap=%d band=%d n_overlap=%d\n", domain->rank, m, overlap, band, domain->n_overlap);
+    fflush(stdout);
+
     // On remet tout le tableau à zéro
-    memset(changed_cells, 0, domain->n_overlap*sizeof(int));
+    memset(changed_cells, 0, domain->n_overlap*m*sizeof(int));
 
     MPI_Request reqs[4];
 
@@ -152,35 +155,101 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 
 
 
-    // Echange avec le voisin du dessus
-    // Le processus envoie sa version des lignes qu'il partage avec le processus au dessus, et il reçoit la version de son voisin de ces mêmes lignes
-
-    // On vérifie que le processus n'est pas tout en haut, que le recouvrement est strictement positif et que son sous-domaine possède suffisamment de lignes pour l'échange de données
-    if (domain->up_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band){
-        send_up = (double*)malloc((size_t)band * m * sizeof(double));
-        recv_up = (double*)malloc((size_t)band * m * sizeof(double));
-        memcpy(send_up, g_processus->T, (size_t)band * m * sizeof(double));
+    // Pour l'échange avec le voisin du dessus, on vérifie que le processus n'est pas tout en haut, que le recouvrement est strictement positif et que son sous-domaine possède suffisamment de lignes pour l'échange de données
+    int do_up = domain->up_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band;
+    if (do_up){
+        send_up = (double*)malloc(band * m * sizeof(double));
+        recv_up = (double*)malloc(band * m * sizeof(double));
+        memcpy(send_up, g_processus->T, band * m * sizeof(double));
     }
 
-    MPI_Isend(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, reqs);
-    MPI_Irecv(recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, reqs+1);
-
-
-
-    // Echange avec le voisin du dessous
-    // Même fonctionnement qu'au-dessous mais avec le voisin du dessous
-
-    // On vérifie que le processus n'est pas tout en bas, que le recouvrement est strictement positif et que son sous domaine possède suffisamment de lignes pour l'échange de données
-    if (domain->down_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band){
-        send_down = (double*)malloc((size_t)band * m * sizeof(double));
-        recv_down = (double*)malloc((size_t)band * m * sizeof(double));
-        memcpy(send_down, g_processus->T, (size_t)band * m * sizeof(double));
+    // Pour l'échange avec le voisin du dessous, on vérifie que le processus n'est pas tout en bas, que le recouvrement est strictement positif et que son sous domaine possède suffisamment de lignes pour l'échange de données
+    int do_down = domain->down_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band;
+    if (do_down){
+        int beginning = (domain->n_overlap - band)*m;
+        send_down = (double*)malloc(band * m * sizeof(double));
+        recv_down = (double*)malloc(band * m * sizeof(double));
+        memcpy(send_down, g_processus->T + beginning, band * m * sizeof(double));
     }
 
-    MPI_Isend(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, reqs+2);
-    MPI_Irecv(recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, reqs+3);
+    // Pour éviter les deadlocks, ordonnancement pair et impair
+    // Si le rang du processus est pair alors il envoie puis il reçoit
+    // Si le rang du processus est impair, alors il reçoit puis il envoie
 
-    MPI_Waitall(4, reqs, MPI_STATUSES_IGNORE);
+    // 1er cas: le rang est pair
+    if (domain->proc_coord % 2 == 0){
+        if (do_up){
+            // Test
+            printf("[rank %d] (pair) Send vers up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, band*m);
+            fflush(stdout);
+
+            MPI_Send(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm);
+        }
+
+        if (do_down){
+            // Test
+            printf("[rank %d] (pair) Send vers down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, band*m);
+            fflush(stdout);
+
+            MPI_Send(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm);
+        }
+
+        if (do_up){
+            // Test
+            printf("[rank %d] (pair) Recv depuis up_rank=%d\n", domain->rank, domain->up_rank);
+            fflush(stdout);
+
+            MPI_Recv(recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        }
+
+        if (do_down){
+            // Test
+            printf("[rank %d] (pair) Recv depuis down_rank=%d\n", domain->rank, domain->down_rank);
+            fflush(stdout);
+
+            MPI_Recv(recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        }
+    }
+
+    //2e cas: le rang est impair
+    else{
+        if (do_up){
+            // Test
+            printf("[rank %d] (impair) Recv depuis up_rank=%d\n", domain->rank, domain->up_rank);
+            fflush(stdout);
+
+            MPI_Recv(recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        }
+
+        if (do_down){
+            // Test
+            printf("[rank %d] (impair) Recv depuis down_rank=%d\n", domain->rank, domain->down_rank);
+            fflush(stdout);
+
+            MPI_Recv(recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        }
+
+        if (do_up){
+            // Test
+            printf("[rank %d] (impair) Send vers up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, band*m);
+            fflush(stdout);
+
+            MPI_Send(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm);
+        }
+
+        if (do_down){
+            // Test
+            printf("[rank %d] (impair) Send vers down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, band*m);
+            fflush(stdout);
+
+            MPI_Send(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm);
+        }
+    }
+
+    // Test
+    printf("[rank %d] échanges Send/Recv termines\n", domain->rank);
+    fflush(stdout);
+
 
 
     // Comparaison des valeurs de T entre le processus courant et son voisin du haut pour garder le minimum à chaque cellule
@@ -192,6 +261,9 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
+
+                // Test
+                printf("[rank %d] up: cellule k=%d mise à jour %.4f -> %.4f\n", domain->rank, k, old_T, new_T);
             }
         }
 
@@ -205,17 +277,24 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         int beginning = (domain->n_overlap - band) * m;
         for (int k = beginning; k < beginning + band*m; k++){
             double old_T = g_processus->T[k];
-            double new_T = recv_down[k];
+            double new_T = recv_down[k - beginning];
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
+
+                // Test
+                printf("[rank %d] down: cellule k=%d mise à jour %.4f -> %.4f\n", domain->rank, k, old_T, new_T);
             }
         }
 
         free(send_down);
         free(recv_down);
     }
+
+    // Test
+    printf("[rank %d] exchange_overlap terminé, any_change=%d\n", domain->rank, any_change);
+    fflush(stdout);
 
     return any_change;
 }

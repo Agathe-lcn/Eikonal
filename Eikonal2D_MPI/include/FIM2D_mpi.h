@@ -42,7 +42,7 @@ void topology_free(MPIDomain* domain);
 
 // Echange la bande de recouvrement avec les voisins en haut et en bas, et applique le minimum sur T
 // Retourne 1 si au moins une valeur a été améliorée pour le processus et 0 sinon
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_rows);
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells);
 
 // Propagation de l'onde à partir des mailles start sur autant de pixels que la valeur du recouvrement
 // (Par exemple, si on a un recouvrement de 3 pixels alors chaque sous domain MPI propage l'onde sur 3 pixels)
