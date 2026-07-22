@@ -7,6 +7,7 @@
 
 typedef struct{
     MPI_Comm comm;
+    MPI_Comm exch_comm; // Communicateur pour les échanges de recouvrement
     int rank;
     int nproc;
     int proc_coord; // Numéro de la bande du processus
@@ -23,9 +24,9 @@ typedef struct{
     int n_owned;
 
     // Domaine avec recouvrement
-    int i_local_start;
-    int i_local_end;
-    int n_local;
+    int i_start_overlap;
+    int i_end_overlap;
+    int n_overlap;
 
     int top_ghost;  // Nombre de lignes de recouvrement en haut
     int bottom_ghost;   // Nombre de lignes de recouvrement en bas
@@ -38,5 +39,19 @@ MPIDomain* topology_create(int n, int m, double h, int overlap);
 
 // Libère la topologie MPI
 void topology_free(MPIDomain* domain);
+
+// Echange la bande de recouvrement avec les voisins en haut et en bas, et applique le minimum sur T
+// Retourne 1 si au moins une valeur a été améliorée pour le processus et 0 sinon
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_rows);
+
+// Propagation de l'onde à partir des mailles start sur autant de pixels que la valeur du recouvrement
+// (Par exemple, si on a un recouvrement de 3 pixels alors chaque sous domain MPI propage l'onde sur 3 pixels)
+// depth[k] permet de connaitre la distance entre la maille k et la source
+// frontier[k] vaut 1 si la maille k a été parcourue lors du dernier tour de la FIM (elle deviendra donc une maille de départ lors du prochain appel à local_propagate), 0 sinon
+int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier);
+
+
+// FIM avec utilisation du MPI
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, const int* src_i_overlap, const int* src_j_overlap, int ns_overlap, double espilon, int nb_cycles);
 
 #endif /* FIM2D_MPI_H */

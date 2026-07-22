@@ -2,9 +2,10 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
 
-#define TAG_BAS 100
-#define TAG_HAUT 1000
+#define TAG 0
 
 MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPIDomain* domain = (MPIDomain*)malloc(sizeof(MPIDomain));
@@ -65,6 +66,7 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     }
 
     domain->comm = GRID_COMM;
+    MPI_Comm_dup(GRID_COMM, &domain->exch_comm);
     domain->rank = rank;
     domain->nproc = nproc;
     domain->proc_coord = proc_coords;
@@ -93,9 +95,9 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     if (domain->bottom_ghost > n)
         domain->bottom_ghost = n;
 
-    domain->i_local_start = domain->i_owned_start - domain->top_ghost;
-    domain->i_local_end = domain->i_owned_end + domain->bottom_ghost;
-    domain->n_local = domain->i_local_end - domain->i_local_start + 1;
+    domain->i_start_overlap = domain->i_owned_start - domain->top_ghost;
+    domain->i_end_overlap = domain->i_owned_end + domain->bottom_ghost;
+    domain->n_overlap = domain->i_end_overlap - domain->i_start_overlap + 1;
     domain->up_rank = up_rank;
     domain->down_rank = down_rank;
 
@@ -107,5 +109,167 @@ void topology_free(MPIDomain* domain){
     if (!domain)
         return;
 
+    MPI_Comm_free(&domain->comm);
+    MPI_Comm_free(&domain->exch_comm);
     free(domain);
+}
+
+
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells){
+    int m = domain->m;
+    int overlap = domain->overlap;
+    int band = 2*overlap;   // Band est la largeur de la zone en commun entre un processus et son voisin
+    int any_change = 0;
+
+    // On remet tout le tableau à zéro
+    memset(changed_cells, 0, domain->n_overlap*sizeof(int));
+
+    MPI_Request reqs[4];
+
+    double* send_up = NULL;
+    double* send_down = NULL;
+    double* recv_up = NULL;
+    double* recv_down = NULL;
+
+
+
+    // Echange avec le voisin du dessus
+    // Le processus envoie sa version des lignes qu'il partage avec le processus au dessus, et il reçoit la version de son voisin de ces mêmes lignes
+
+    // On vérifie que le processus n'est pas tout en haut, que le recouvrement est strictement positif et que son sous-domaine possède suffisamment de lignes pour l'échange de données
+    if (domain->up_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band){
+        send_up = (double*)malloc((size_t)band * m * sizeof(double));
+        recv_up = (double*)malloc((size_t)band * m * sizeof(double));
+        memcpy(send_up, g_processus->T, (size_t)band * m * sizeof(double));
+    }
+
+    MPI_Isend(send_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, reqs);
+    MPI_Irecv(recv_up, band*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, reqs+1);
+
+
+
+    // Echange avec le voisin du dessous
+    // Même fonctionnement qu'au-dessous mais avec le voisin du dessous
+
+    // On vérifie que le processus n'est pas tout en bas, que le recouvrement est strictement positif et que son sous domaine possède suffisamment de lignes pour l'échange de données
+    if (domain->down_rank != MPI_PROC_NULL && overlap > 0 && domain->n_overlap >= band){
+        send_down = (double*)malloc((size_t)band * m * sizeof(double));
+        recv_down = (double*)malloc((size_t)band * m * sizeof(double));
+        memcpy(send_down, g_processus->T, (size_t)band * m * sizeof(double));
+    }
+
+    MPI_Isend(send_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, reqs+2);
+    MPI_Irecv(recv_down, band*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, reqs+3);
+
+    MPI_Waitall(4, reqs, MPI_STATUSES_IGNORE);
+
+
+    // Comparaison des valeurs de T entre le processus courant et son voisin du haut pour garder le minimum à chaque cellule
+    if (recv_up){
+        for (int k = 0; k < band*m; k++){
+            double old_T = g_processus->T[k];
+            double new_T = recv_up[k];
+            if (new_T < old_T - EIKONAL_EPS){
+                g_processus->T[k] = new_T;
+                any_change = 1;
+                changed_cells[k] = 1;
+            }
+        }
+
+        free(send_up);
+        free(recv_up);
+    }
+
+
+    // Comparaison des valeurs de T entre le processus courant et son voisin du bas pour garder le minimum à chaque cellule
+    if (recv_down){
+        int beginning = (domain->n_overlap - band) * m;
+        for (int k = beginning; k < beginning + band*m; k++){
+            double old_T = g_processus->T[k];
+            double new_T = recv_down[k];
+            if (new_T < old_T - EIKONAL_EPS){
+                g_processus->T[k] = new_T;
+                any_change = 1;
+                changed_cells[k] = 1;
+            }
+        }
+
+        free(send_down);
+        free(recv_down);
+    }
+
+    return any_change;
+}
+
+
+int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
+    int n = g_processus->n;
+    int m = g_processus->m;
+    int ncell = n*m;
+
+    // Initialisation de depth et frontier
+    for (int k=0; k < ncell; k++){
+        depth[k] = -1;
+        frontier[k] = 0;
+    }
+
+    // Création de la narrow band
+    NodeList* narrow = list_create(ncell);
+
+    // On met les cellules de départ à une profondeur 0
+    for (int k=0; k < ncell; k++){
+        if (!start[k])
+            continue;
+
+        depth[k] = 0;
+        if (!list_contains(narrow,k))
+            list_push_back(narrow,k);
+    }
+
+    while (!list_is_empty(narrow)){
+        int index = list_pop_front(narrow);
+        int i = index / m;
+        int j = index % m;
+
+        double T_old = g_processus->T[index];
+        g_processus->T[index] = eikonal_solve_local(g_processus, i, j);
+        double diff = fabs(g_processus->T[index] - T_old);
+
+        if (diff <= epsilon){   // Convergence
+            // On parcourt les voisins qui sont dans la zone de propagation voulue
+            int depth_neighbor = depth[index] + 1;
+            if (depth_neighbor <= overlap){
+                int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
+                for (int k=0; k < 4; k++){
+                    int ni = neighbors[k][0];
+                    int nj = neighbors[k][1];
+                    if (ni >= 0 && ni < n && nj >= 0 && nj < m){
+                        int index_neighbor = ni * m + nj;
+                        
+                        // On met à jour la valeur de la profondeur du voisin
+                        if (depth[index_neighbor] < 0)
+                            depth[index_neighbor] = index_neighbor;
+
+                        double T_neighbor_new = eikonal_solve_local(g_processus, ni, nj);
+                        if (T_neighbor_new < g_processus->T[index_neighbor]){
+                            g_processus->T[index_neighbor] = T_neighbor_new;
+                            if (!list_contains(narrow, index_neighbor))
+                                list_push_back(narrow, index_neighbor);
+                        }
+                    }
+                }
+            }
+        }
+        else
+            list_push_front(narrow, index);
+    }
+
+    // Les cellules qui ont été atteintes à la profondeur maximale (c'est-à-dire qui sont à la "frontière") sont ajouté au tableau frontier pour devenir les points de départ de la propagation suivante
+    for (int k=0; k < ncell; k++){
+        if (depth[k] == overlap)
+            frontier[k] = 1;
+    }
+
+    // Nettoyage
+    list_free(narrow);
 }
