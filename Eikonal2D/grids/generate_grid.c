@@ -147,7 +147,7 @@ void removing_sources_in_walls(EikonalGrid* g, Config* cfg){
         int j = cfg->src_j[s];
 
         if (eikonal_grid_is_obstacle(g,i,j)){
-            printf("Attention: La source %d situé auc coordonées (%d,%d) est dans un mur, elle va être ignorée.\n", s, i, j);
+            printf("Attention: La source %d située aux coordonnées (%d,%d) est dans un mur, elle va être ignorée.\n", s, i, j);
             continue;
         }
 
@@ -220,7 +220,7 @@ int main(int argc, char** argv){
     // Création de la grille
     EikonalGrid* g = eikonal_grid_create(cfg.n, cfg.m, cfg.h);
     if (!g){
-        printf("EErreur: impossible de créer la grille\n");
+        printf("Erreur: impossible de créer la grille\n");
         free_config(&cfg);
         return 1;
     }

@@ -60,11 +60,11 @@ def compute_error():
     
     # Statistiques
     valid_error = error[~np.isnan(error)]
-    print("\nError statistics |T_euclid - T_fim|\n")
-    print(f"Maximum error: {np.max(valid_error):.6e}")
-    print(f"Minimal error: {np.min(valid_error):.6e}")
-    print(f"Average error: {np.mean(valid_error):.6e}")
-    print(f"Median error: {np.median(valid_error):.6e}")
+    print("\nStatistiques sur l'erreur |T_euclid - T_fim|\n")
+    print(f"Erreur maximale: {np.max(valid_error):.6e}")
+    print(f"Erreur minimale: {np.min(valid_error):.6e}")
+    print(f"Erreur moyenne: {np.mean(valid_error):.6e}")
+    print(f"Erreur médiane: {np.median(valid_error):.6e}")
 
     # Visualisation
     x = np.linspace(0, length, m)
@@ -73,7 +73,7 @@ def compute_error():
 
     # Figure 1: solution de la FIM
     im1 = axes[0].pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
-    axes[0].set_title("FIM-distance map")
+    axes[0].set_title("FIM-carte des distances")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
     # Ajout des isocontours
@@ -93,7 +93,7 @@ def compute_error():
 
     # Figure 2: Erreur | T_euclid - T_fim |
     im2 = axes[1].pcolormesh(X, Y, error, shading='nearest', cmap='hot')
-    axes[1].set_title("FIM-error")
+    axes[1].set_title("FIM-erreur")
     axes[1].set_xlabel("X")
     axes[1].set_ylabel("Y")
     # Affiche toutes les sources

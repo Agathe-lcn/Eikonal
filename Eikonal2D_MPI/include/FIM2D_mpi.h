@@ -34,6 +34,34 @@ typedef struct{
     int down_rank;  // Rang du voisin du dessous
 } MPIDomain;
 
+
+
+typedef struct{
+    int n;
+    int m;
+    double h;
+
+    // Sources globales
+    int nsources;
+    int* src_i;
+    int* src_j;
+
+    // Sources locales
+    int nsources_overlap;
+    int* src_i_overlap;
+    int* src_j_overlap;
+
+    int nwalls;
+    int* wall_c1;
+    int* wall_c2;
+    int* wall_r1;
+    int* wall_r2;
+}Config2;
+
+
+
+
+
 // Crée la topologie 1D en bandes
 MPIDomain* topology_create(int n, int m, double h, int overlap);
 
@@ -52,6 +80,6 @@ int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, dou
 
 
 // FIM avec utilisation du MPI
-void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, const int* src_i_overlap, const int* src_j_overlap, int ns_overlap, double espilon, int nb_cycles);
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg, double espilon, int nb_cycles);
 
 #endif /* FIM2D_MPI_H */

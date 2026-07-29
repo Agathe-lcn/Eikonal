@@ -427,7 +427,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     int total_cells = 0;
     int cells_processed = 0;
 
-    // Compte le nombre de cellules dans le rayon
+    // Compte le nombre de mailles dans le rayon
     if (!compute_all) 
         total_cells = count_cells_in_radius(g, src_i, src_j, ns, max_radius);
 
@@ -457,7 +457,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
 
         if (diff <= epsilon) {
-            // La cellule a convergé: on la fige et ses voisins susceptibles d'être améliorés sont ajoutés à la liste
+            // La maille a convergé: on la fige et ses voisins susceptibles d'être améliorés sont ajoutés à la liste
             int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
             for (int k=0; k < 4; k++){
                 int ni = neighbors[k][0];

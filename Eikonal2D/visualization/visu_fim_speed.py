@@ -82,6 +82,13 @@ def visualize_fim_F():
     axes[0].axis('equal')
     plt.colorbar(im1, ax=axes[0])
 
+    # Ajout des isocontours
+    T_min = np.nanmin(T_fim)
+    T_max = np.nanmax(T_fim)
+    nb_contours = 15
+    levels = np.linspace(T_min, T_max, nb_contours)
+    axes[0].contour(X, Y, T_fim, levels, colors = 'white', linewidths=0.8, alpha=0.7)
+
     # Figure 2: Vitesse F
     im2 = axes[1].pcolormesh(X, Y, F, shading='nearest', cmap='viridis')
     axes[1].set_title("Vitesse F")

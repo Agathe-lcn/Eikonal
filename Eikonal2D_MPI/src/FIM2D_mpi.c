@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 
 #define TAG 0
 
@@ -299,7 +300,7 @@ int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, dou
             list_push_front(narrow, index);
     }
 
-    // Les cellules qui ont été atteintes à la profondeur maximale (c'est-à-dire qui sont à la "frontière") sont ajouté au tableau frontier pour devenir les points de départ de la propagation suivante
+    // Les mailles qui ont été atteintes à la profondeur maximale (c'est-à-dire qui sont à la "frontière") sont ajoutées au tableau frontier pour devenir les points de départ de la propagation suivante
     for (int k=0; k < ncell; k++){
         if (depth[k] == overlap)
             frontier[k] = 1;
@@ -307,4 +308,55 @@ int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, dou
 
     // Nettoyage
     list_free(narrow);
+}
+
+
+
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, double epsilon, int nb_cycles){
+    int n = g_processus->n;
+    int m = g_processus->m;
+    int ncell = n * m;
+ 
+    int* start = (int*)malloc(ncell * sizeof(int));
+    int* frontier = (int*)malloc(ncell * sizeof(int));
+    int* depth = (int*)malloc(ncell * sizeof(int));
+    int* changed_cells = (int*)malloc(domain->n_overlap * domain->m * sizeof(int));
+
+    int cycle = 0;
+    while(true){
+        // On fait la propagation sur 'overlap' cellules de distance
+        local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
+
+        // Communication entre les processus
+        int changed = exchange_overlap(domain, g_processus, changed_cells);
+
+        // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
+        memset(start, 0, ncell * sizeof(int));
+        int continue_local = 0;
+        for (int k = 0; k < ncell; k++){
+            if (frontier[k]){
+                start[k] = 1;
+                continue_local = 1;
+            }
+            if (changed_cells[k]){
+                start[k] = 1;
+                continue_local = 1;
+            }
+        }
+
+        cycle++;
+        if (0 < nb_cycles <= cycle)
+            break;
+
+        // Si tous les processus n'ont plus de travail alors on arrête tout
+        int continue_global = 0;
+        MPI_Allreduce(&continue_local, &continue_global, 1, MPI_INT, MPI_MAX, domain->comm);
+        if (!continue_global)
+            break;
+    }
+
+    free(start);
+    free(frontier);
+    free(depth);
+    free(changed_cells);
 }

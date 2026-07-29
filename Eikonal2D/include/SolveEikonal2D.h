@@ -24,19 +24,19 @@ void eikonal_grid_free(EikonalGrid* g);
 // Définit la vitesse F (constante) pour l'ensemble de la grille
 void eikonal_grid_set_speed_constant(EikonalGrid* g, double F);
 
-// Définit la valeur F cellule par cellule à l'aide d'un tableau
+// Définit la valeur F maille par maille à l'aide d'un tableau
 void eikonal_grid_set_speed(EikonalGrid* g, int i, int j, double F);
 
-// Obtenir la valeur de la vitesse cellule par cellule
+// Obtenir la valeur de la vitesse maille par maille
 double eikonal_grid_get_speed(const EikonalGrid* g, int i, int j);
 
-// Marque une cellule comme un obstacle
+// Marque une maille comme un obstacle
 void eikonal_grid_set_obstacle(EikonalGrid* g, int i, int j);
 
-// Vérifie si une cellule est dans un mur
+// Vérifie si une maille est dans un mur
 int eikonal_grid_is_obstacle(const EikonalGrid* g, int i, int j);
 
-// Solution locale de l'équation eikonale en 2D pour la cellule (i,j)
+// Solution locale de l'équation eikonale en 2D pour la maille (i,j)
 // Renvoie la nouvelle valeur estimée de T 
 double eikonal_solve_local(const EikonalGrid* g, int i, int j);
 
