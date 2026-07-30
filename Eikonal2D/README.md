@@ -124,7 +124,7 @@ Les scripts du dossier `visualization/` permettent d'analyser les résultats pro
   python3 visualization/error_fim.py
   ```
 
-- **`benchmark.py`** : visualisation du temps de calcul de la FIM en fonction de la taille de la grille avec et sans seuil.
+- **`benchmark.py`** : visualisation du temps de calcul de la FIM en fonction de la taille de la grille, avec et sans seuil.
 
   ```bash
   python3 visualization/benchmark.py
