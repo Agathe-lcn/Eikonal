@@ -12,7 +12,7 @@ Agathe Luciani
 Installation des dépendances Python :
 
 ```bash
-pip install numpy matplotlib
+pip install numpy matplotlib pandas
 ```
 
 ## Compilation
@@ -23,34 +23,15 @@ Compiler tours les exécutables:
 make all
 ```
 
-ou bien
-
-```bash
-make
-```
-
-Compiler un exécutable spécifique:
-
-```bash
-make generate
-make 1source
-make 5sources
-```
-
 ### Exécution
 
-compiler et exécuter les 3 exécutables:
+Compiler et exécuter manuellement un programme spécifique:
 
 ```bash
-make run
-```
-
-Exécuter manuellement un programme spécifique:
-
-```bash
-./bin/generate_grid config.txt
-./bin/1_source
-./bin/5_sources_1_wall
+make run-generate
+make run-1source
+make run-5sources
+make benchmark
 ```
 
 ### Nettoyage
@@ -141,4 +122,10 @@ Les scripts du dossier `visualization/` permettent d'analyser les résultats pro
 
   ```bash
   python3 visualization/error_fim.py
+  ```
+
+- **`benchmark.py`** : visualisation du temps de calcul de la FIM en fonction de la taille de la grille avec et sans seuil.
+
+  ```bash
+  python3 visualization/benchmark.py
   ```

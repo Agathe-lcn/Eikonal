@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include <time.h>
 
 // Fonctions pour la liste doublement chaînée
 
@@ -186,8 +185,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     if (!g || !src_i || !src_j || ns <= 0)
         return;
 
-    clock_t start_time = clock();
-
     int n = g->n;
     int m = g->m;
     int ncell = n * m;
@@ -350,14 +347,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     // Enregistrement des tags
     eikonal_save_tags(g, source_tag, "source_tags.txt");
 
-    clock_t end_time = clock();
-    double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-
-    if (compute_all)
-        printf("FIM terminée (sans seuil) en %.6f secondes\n", time);
-    else
-        printf("FIM terminée (avec seuil): %d cellules traitées en %.6f secondes\n", cells_processed, time);
-
     // Nettoyage
     list_free(narrow);
     free(source_tag);
@@ -367,8 +356,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius) {
     if (!g || !src_i || !src_j || ns <= 0)
         return;
-
-    clock_t start_time = clock();
 
     int n = g->n;
     int m = g->m;
@@ -490,14 +477,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
     // Enregistrement des tags
     eikonal_save_tags(g, source_tag, "source_tags.txt");
-
-    clock_t end_time = clock();
-    double time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-
-    if (compute_all)
-        printf("FIM terminée (sans seuil) en %.6f secondes\n", time);
-    else
-        printf("FIM terminée (avec seuil): %d cellules traitées en %.6f secondes\n", cells_processed, time);
 
     // Nettoyage
     list_free(narrow);
