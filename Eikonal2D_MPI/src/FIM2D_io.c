@@ -68,7 +68,7 @@ int FIMIO_Checkpoint(char* prefix, MPIDomain* domain, EikonalGrid* g_processus, 
     // Calcul de l'offset
     myfileoffset = 16 + (MPI_Offset)domain->i_owned_start * domain->m *sizeof(double);
 
-    err = MPI_File_write_at_all(fh, myfileoffset, g_processus->T, domain->n_overlap * domain->m, MPI_DOUBLE, MPI_STATUS_IGNORE);
+    err = MPI_File_write_at_all(fh, myfileoffset, g_processus->T + domain->overlap * domain->m, domain->n_owned * domain->m, MPI_DOUBLE, MPI_STATUS_IGNORE);
 
     err = MPI_File_close(&fh);
 

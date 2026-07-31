@@ -9,7 +9,7 @@ def read_config_values():
     # Chargement de n, m et h
     n, m, h = None, None, 1.0
     if not os.path.exists("config.txt"):
-        print(f"Erreur: Fichier config.txt pas trouvé, h=1 par défaut")
+        print("Erreur: Fichier config.txt pas trouvé, h=1 par défaut")
         return n, m, h
 
     with open("config.txt", "r") as f:
@@ -181,7 +181,7 @@ def visualize_fim_mpi():
             top_ghost = overlap if rank > 0 else 0
             top_ghost = min(top_ghost, i_start_owned)
             i_start_overlap = i_start_owned - top_ghost
-            
+
         visualize_fim_rank(rank, h, i_start_overlap, all_sources)
 
     plt.show()
