@@ -5,6 +5,159 @@
 #include <string.h>
 #include <stddef.h>
 #include <math.h>
+#include <stdbool.h>
+#include <ctype.h>
+
+
+// Vérifie si une chaîne est un entier
+bool is_integer(const char* str){
+    if (str == NULL || *str == '\0')
+        return false;
+
+    int i = 0;
+
+    if (str[0] == '-')
+        i = 1;
+
+    // On vérifie que tous les caractères sont des chiffres
+    while(str[i] != '\0'){
+        if (!isdigit(str[i]))
+            return false;
+        i++;
+    }
+
+    // On vérifie qu'il y a au moins 1 chiffre
+    if (i == 0 || (i == 1 && str[0] == '-'))
+        return false;
+
+    return true;
+}
+
+// Vérifie si une chaîne est un double
+bool is_double(const char* str){
+    if (str == NULL || *str == '\0')
+        return false;
+
+    int i = 0;
+    int nb_point = 0;
+
+    if (str[0] == '-')
+        i = 1;
+
+    while(str[i] != '\0'){
+        if (str[i] == '.'){
+            nb_point++;
+
+            if (nb_point > 1)
+                return false;
+        }
+        else if( !isdigit(str[i]))
+            return false;
+
+        i++;
+    }
+
+    // On vérifie qu'il y a au moins 1 chiffre
+    if (i == 0 || (i == 1 && str[0] == '-'))
+        return false;
+
+    return true;
+}
+
+// Validation du fichier de configuration
+bool validate_config(Config* cfg, const char* n_str, const char* m_str, const char* h_str){
+    // n doit être un entier
+    if (!is_integer(n_str)){
+        printf("Erreur: n doit être un entier.\n");
+        return false;
+    }
+
+    // m doit être un entier
+    if (!is_integer(m_str)){
+        printf("Erreur: m doit être un entier.\n");
+        return false;
+    }
+
+    // h doit être un double
+    if (!is_double(h_str)){
+        printf("Erreur: h doit être un double.\n");
+        return false;
+    }
+
+
+    // n doit être positif
+    if (cfg->n <= 0){
+        printf("Erreur: n doit être positif.\n");
+        return false;
+    }
+
+    // m doit être positif
+    if (cfg->m <= 0){
+        printf("Erreur: m doit être positif.\n");
+        return false;
+    }
+
+    // h doit être positif
+    if (cfg->h <= 0.0){
+        printf("Erreur: h doit être positif.\n");
+        return false;
+    }
+
+
+
+
+    // Validation des sources
+    for (int s=0; s < cfg->nsources; s++){
+        if (cfg->src_i[s] < 0 || cfg->src_i[s] >= cfg->n){
+            printf("Erreur: Coordonnée i de la source %d hors limites.\n",s);
+            return false;
+        }
+
+        if (cfg->src_j[s] < 0 || cfg->src_j[s] >= cfg->m){
+            printf("Erreur: Coordonnée j de la source %d hors limites.\n",s);
+            return false;
+        }
+    }
+
+
+
+    // Validation des murs
+    for (int w=0; w < cfg->nwalls; w++){
+        if(cfg->wall_c1[w] < 0 || cfg->wall_c1[w] >= cfg->m){
+            printf("Erreur: Coordonnée c1 du mur %d hors limites.\n",w);
+            return false;
+        }
+
+        if (cfg->wall_c2[w] < 0 || cfg->wall_c2[w] >= cfg->m){
+            printf("Erreur: Coordonnée c2 du mur %d hors limites.\n",w);
+            return false;
+        }
+
+        if (cfg->wall_r1[w] < 0 || cfg->wall_r1[w] >= cfg->n){
+            printf("Erreur: Coordonnée r1 du mur %d hors limites.\n",w);
+            return false;
+        }
+
+        if (cfg->wall_r2[w] < 0 || cfg->wall_r2[w] >= cfg->n){
+            printf("Erreur: Coordonnée r2 du mur %d hors limites.\n",w);
+            return false;
+        }
+
+        if (cfg->wall_c1[w] > cfg->wall_c2[w]){
+            printf("Erreur: c1 > c2 pour le mur %d.\n",w);
+            return false;
+        }
+
+        if (cfg->wall_r1[w] > cfg->wall_r2[w]){
+            printf("Erreur: r1 > r2 pour le mur %d.\n", w);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
 
 // Lecture du fichier de configuration
 Config read_config(const char* filename){
@@ -28,6 +181,19 @@ Config read_config(const char* filename){
     cfg.wall_r1 = (int*)malloc(max_walls * sizeof(int));
     cfg.wall_r2 = (int*)malloc(max_walls * sizeof(int));
 
+    // Vérification des allocations
+    if (!cfg.src_i || !cfg.src_j || !cfg.wall_c1 || !cfg.wall_c2 || !cfg.wall_r1 || !cfg.wall_r2){
+        printf("Erreur: Echec d'allocation mémoire dans read_config.\n");
+        free_config(&cfg);
+        fclose(file);
+        return cfg;
+    }
+
+    // Variables pour stocker les chaînes originales
+    char n_str[MAX_LINE] = "";
+    char m_str[MAX_LINE] = "";
+    char h_str[MAX_LINE] = "";
+
     while (fgets(line, MAX_LINE, file)){
         // On ignore les commentaires et les lignes vides
         if (line[0] == '#' || line[0] == '\n')
@@ -47,38 +213,101 @@ Config read_config(const char* filename){
             continue;
         }
 
-        // Lecture des paramètres de la grille
-        if (sscanf(line, "n = %d", &cfg.n) == 1)
+        // Lecture des paramètres n,m et h avec stockage des chaînes
+        char tempo[MAX_LINE];
+
+        // Lecture de n
+        if (sscanf(line, "n = %s", tempo) == 1){
+            strcpy(n_str,tempo);
+            cfg.n = atoi(tempo);
             continue;
-        if (sscanf(line, "m = %d", &cfg.m) == 1)
+        }
+
+        // Lecture de m
+        if (sscanf(line, "m = %s", tempo) == 1){
+            strcpy(m_str, tempo);
+            cfg.m = atoi(tempo);
             continue;
-        if (sscanf(line, "h = %lf", &cfg.h) == 1)
+        }
+
+        // Lecture de h
+        if (sscanf(line, "h = %s", tempo) == 1){
+            strcpy(h_str, tempo);
+            cfg.h = atof(tempo);
             continue;
+        }
 
         // Lecture des sources
         if (section == 1){
-            int i, j;
-            if (sscanf(line, "%d %d",&i, &j) == 2){
-                cfg.src_i[cfg.nsources] = i;
-                cfg.src_j[cfg.nsources] = j;
+            char i_str[MAX_LINE];
+            char j_str[MAX_LINE];
+            char extra[MAX_LINE];
+            
+            // Vérifier qu'il y a exactement 2 entiers
+            if (sscanf(line, "%s %s %s", i_str, j_str, extra) == 2){
+                // Vérifier que les coordonnées sont des entiers
+                if (!is_integer(i_str) || !is_integer(j_str)) {
+                    printf("Erreur: Les coordonnées des sources doivent être des entiers: %s.\n", line);
+                    free_config(&cfg);
+                    fclose(file);
+                    cfg.valid = false;
+                    return cfg;
+                }
+                
+                cfg.src_i[cfg.nsources] = atoi(i_str);
+                cfg.src_j[cfg.nsources] = atoi(j_str);
                 cfg.nsources++;
+            } else {
+                printf("Erreur: Les lignes contenant les coordonnées d'une source doivent contenir 2 entiers: %s\n", line);
+                free_config(&cfg);
+                fclose(file);
+                cfg.valid = false;
+                return cfg;
             }
         }
 
         // Lecture des murs
         if (section == 2){
-            int c1, c2, r1, r2;
-            if (sscanf(line, "%d %d %d %d", &c1, &c2, &r1, &r2)){
-                cfg.wall_c1[cfg.nwalls] = c1;
-                cfg.wall_c2[cfg.nwalls] = c2;
-                cfg.wall_r1[cfg.nwalls] = r1;
-                cfg.wall_r2[cfg.nwalls] = r2;
+            char c1_str[MAX_LINE];
+            char c2_str[MAX_LINE];
+            char r1_str[MAX_LINE];
+            char r2_str[MAX_LINE];
+            char extra[MAX_LINE];
+            
+            // Vérifier qu'il y a exactement 4 valeurs
+            if (sscanf(line, "%s %s %s %s %s", c1_str, c2_str, r1_str, r2_str, extra) == 4){
+                // Vérifier que les coordonnées sont des entiers
+                if (!is_integer(c1_str) || !is_integer(c2_str) || !is_integer(r1_str) || !is_integer(r2_str)) {
+                    printf("Erreur: Les coordonnées des murs doivent être des entiers: %s.\n", line);
+                    free_config(&cfg);
+                    fclose(file);
+                    cfg.valid = false;
+                    return cfg;
+                }
+                
+                cfg.wall_c1[cfg.nwalls] = atoi(c1_str);
+                cfg.wall_c2[cfg.nwalls] = atoi(c2_str);
+                cfg.wall_r1[cfg.nwalls] = atoi(r1_str);
+                cfg.wall_r2[cfg.nwalls] = atoi(r2_str);
                 cfg.nwalls++;
+            } else {
+                printf("Erreur: Les lignes contenant les coordonnées d'un mur doivent contenir 4 entiers: %s\n", line);
+                free_config(&cfg);
+                fclose(file);
+                cfg.valid = false;
+                return cfg;
             }
         }
     }
 
     fclose(file);
+
+    if (!validate_config(&cfg, n_str, m_str, h_str)) {
+        cfg.valid = false;
+    } else {
+        cfg.valid = true;
+    }
+
     return cfg;
 }
 

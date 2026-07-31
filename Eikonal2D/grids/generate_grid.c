@@ -14,28 +14,22 @@ int main(int argc, char** argv){
     // Lecture de la configuration
     Config cfg = read_config(config_file);
 
-    if (cfg.n == 0 || cfg.m == 0){
-        printf("Erreur: configuration invalide (n ou m pas défini)\n");
+    if (!cfg.valid){
+        printf("Erreur: Configuration invalide.\n");
         free_config(&cfg);
-        return 1;
-    }
-
-    if (cfg.h <= 0){
-        printf("Erreur: configuration invalide (h pas défini)\n");
-        free_config(&cfg);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     if (cfg.nsources == 0){
-        printf("Erreur: aucune source spécifiée\n");
+        printf("Erreur: aucune source spécifiée.\n");
         free_config(&cfg);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     // Création de la grille
     EikonalGrid* g = eikonal_grid_create(cfg.n, cfg.m, cfg.h);
     if (!g){
-        printf("Erreur: impossible de créer la grille\n");
+        printf("Erreur: impossible de créer la grille.\n");
         free_config(&cfg);
         return 1;
     }

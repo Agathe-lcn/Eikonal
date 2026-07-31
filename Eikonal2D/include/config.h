@@ -3,6 +3,8 @@
 
 #include "FIM2D.h"
 
+#include <stdbool.h>
+
 #define EPSILON 1e-12
 #define MAX_LINE 1024
 
@@ -21,6 +23,8 @@ typedef struct{
     int* wall_c2;   // Colonne de fin
     int* wall_r1;   // Ligne de départ
     int* wall_r2;   // Ligne de fin
+
+    bool valid;
 } Config;
 
 // Lecture du fichier de configuration
