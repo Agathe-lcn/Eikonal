@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 #define TAG 0
+#define TEST_MODE 1     // 1 pour désactiver les communications et 0 pour les activer
 
 MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPIDomain* domain = (MPIDomain*)malloc(sizeof(MPIDomain));
@@ -136,6 +137,11 @@ void topology_free(MPIDomain* domain){
 
 
 int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells){
+    // Si on veut tester sans les communications, alors on ne fait rien
+    #ifdef TEST_MODE
+        return 0;
+    #endif
+
     int m = domain->m;
     int overlap = domain->overlap;
     int band = 2*overlap;   // Band est la largeur de la zone en commun entre un processus et son voisin
@@ -238,10 +244,19 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 }
 
 
-int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
+void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n*m;
+
+    // TEST
+    printf("[Processus] === DEBUT local_propagate ===\n");
+    printf("[Processus] overlap=%d, epsilon=%f\n", overlap, epsilon);
+    int nb_start = 0;
+    for (int k = 0; k < ncell; k++) {
+        if (start[k]) nb_start++;
+    }
+    printf("[Processus] start contient %d cellules\n", nb_start);
 
     // Initialisation de depth et frontier
     for (int k=0; k < ncell; k++){
@@ -253,27 +268,66 @@ int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, dou
     NodeList* narrow = list_create(ncell);
 
     // On met les cellules de départ à une profondeur 0
+
+    // TEST
+    int nb_in_narrow = 0;
+
     for (int k=0; k < ncell; k++){
         if (!start[k])
             continue;
 
         depth[k] = 0;
-        if (!list_contains(narrow,k))
+        if (!list_contains(narrow,k)){
             list_push_back(narrow,k);
+
+            // TEST
+            nb_in_narrow++;
+            printf("[Processus] Cellule %d ajoutée à narrow (source)\n", k);
+        }
     }
 
+    // TEST
+    printf("[Processus] %d cellules dans narrow\n", nb_in_narrow);
+    if (list_is_empty(narrow)) {
+        printf("[Processus] ERREUR: narrow est vide ! Aucune source trouvée.\n");
+        list_free(narrow);
+        return;
+    }
+    int iterations = 0;
+
     while (!list_is_empty(narrow)){
+        // TEST
+        iterations++;
+
         int index = list_pop_front(narrow);
         int i = index / m;
         int j = index % m;
 
+        // TEST
+        printf("[Processus] Iteration %d: traitement de la cellule %d (%d,%d)\n", iterations, index, i, j);
+
         double T_old = g_processus->T[index];
-        g_processus->T[index] = eikonal_solve_local(g_processus, i, j);
+
+        // Si c'est une source alors on ne la recalcule pas
+        if (T_old == 0.0)
+            printf("[Processus]   Source: T gardé à 0\n");
+        else{
+            g_processus->T[index] = eikonal_solve_local(g_processus, i, j);
+            printf("[Processus]   eikonal_solve_local(%d,%d) = %f\n", i, j, g_processus->T[index]);
+        }
+
         double diff = fabs(g_processus->T[index] - T_old);
+
+        //TEST
+        printf("[Processus]   T_old=%f, T_new=%f, diff=%f\n", T_old, g_processus->T[index], diff);
 
         if (diff <= epsilon){   // Convergence
             // On parcourt les voisins qui sont dans la zone de propagation voulue
             int depth_neighbor = depth[index] + 1;
+
+            // TEST
+            printf("[Processus]   Convergence! depth_neighbor=%d, overlap=%d\n", depth_neighbor, overlap);
+
             if (depth_neighbor <= overlap){
                 int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
                 for (int k=0; k < 4; k++){
@@ -283,28 +337,56 @@ int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, dou
                         int index_neighbor = ni * m + nj;
                         
                         // On met à jour la valeur de la profondeur du voisin
-                        if (depth[index_neighbor] < 0)
-                            depth[index_neighbor] = index_neighbor;
+                        if (depth[index_neighbor] < 0){
+                            depth[index_neighbor] = depth_neighbor;
+
+                            // TEST
+                            printf("[Processus]   Voisin (%d,%d) index=%d profondeur=%d\n", ni, nj, index_neighbor, depth_neighbor);
+                        }
 
                         double T_neighbor_new = eikonal_solve_local(g_processus, ni, nj);
                         if (T_neighbor_new < g_processus->T[index_neighbor]){
                             g_processus->T[index_neighbor] = T_neighbor_new;
-                            if (!list_contains(narrow, index_neighbor))
+
+                            // TEST
+                            printf("[Processus]   Voisin (%d,%d) mis à jour: %f\n", ni, nj, T_neighbor_new);
+
+                            if (!list_contains(narrow, index_neighbor)){
                                 list_push_back(narrow, index_neighbor);
+
+                                // TEST
+                                printf("[Processus]   Voisin ajouté à narrow\n");
+                            }
                         }
                     }
                 }
             }
         }
-        else
+        else{
             list_push_front(narrow, index);
+
+            // TEST
+            printf("[Processus]   Pas de convergence, remis en tête de narrow\n");
+        }
     }
 
     // Les mailles qui ont été atteintes à la profondeur maximale (c'est-à-dire qui sont à la "frontière") sont ajoutées au tableau frontier pour devenir les points de départ de la propagation suivante
+    
+    //TEST
+    int nb_frontier = 0;
+
     for (int k=0; k < ncell; k++){
-        if (depth[k] == overlap)
+        if (depth[k] == overlap){
             frontier[k] = 1;
+
+            // TEST
+            nb_frontier++;
+        }
     }
+
+    // TEST
+    printf("[Processus] %d cellules en frontière (profondeur=%d)\n", nb_frontier, overlap);
+    printf("[Processus] === FIN local_propagate (%d itérations) ===\n", iterations);
 
     // Nettoyage
     list_free(narrow);
@@ -312,18 +394,30 @@ int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, dou
 
 
 
-void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, double epsilon, int nb_cycles){
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, int* start, double epsilon, int nb_cycles){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n * m;
+
+    // TEST
+    printf("========== DEBUT fim_solve_mpi ==========\n");
+    printf("[Processus %d] n=%d, m=%d, ncell=%d\n", domain->rank, n, m, ncell);
+    int nb_start_init = 0;
+    for (int k = 0; k < ncell; k++) {
+        if (start[k]) nb_start_init++;
+    }
+    printf("[Processus %d] start contient %d cellules marquées au début\n", domain->rank, nb_start_init);
  
-    int* start = (int*)malloc(ncell * sizeof(int));
     int* frontier = (int*)malloc(ncell * sizeof(int));
     int* depth = (int*)malloc(ncell * sizeof(int));
     int* changed_cells = (int*)malloc(domain->n_overlap * domain->m * sizeof(int));
 
     int cycle = 0;
     while(true){
+
+        // TEST
+        printf("[Processus %d] Cycle %d - avant local_propagate\n", domain->rank, cycle);
+
         // On fait la propagation sur 'overlap' cellules de distance
         local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
 
@@ -345,6 +439,24 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         }
 
         cycle++;
+
+        // Dans le cas où on teste sans communications, on continue tant qu'il y a du travail
+        #ifdef TEST_MODE
+            if (!continue_local){
+                // TEST
+                printf("[Processus %d] Cycle %d - plus de travail, arrêt\n", domain->rank, cycle);
+
+                break;
+            }
+            if (nb_cycles > 0 && cycle >= nb_cycles){
+                // TEST
+                printf("[Processus %d] Cycle %d - NB_CYCLES ATTEINT, arrêt\n", domain->rank, cycle);
+
+                break;
+            }
+            continue;
+        #endif
+
         if (0 < nb_cycles <= cycle)
             break;
 
@@ -355,7 +467,10 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
             break;
     }
 
-    free(start);
+    //TEST
+    printf("[Processus %d] FIN fim_solve_mpi après %d cycles\n", domain->rank, cycle);
+    printf("========== FIN fim_solve_mpi ==========\n");
+
     free(frontier);
     free(depth);
     free(changed_cells);

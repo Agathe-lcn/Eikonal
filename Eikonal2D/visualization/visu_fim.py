@@ -8,13 +8,13 @@ def visualize_fim():
     # Chargement de la matrice FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
-        print(f"Error: File {fim_file} not found")
+        print(f"Erreur: Fichier {fim_file} pas trouvé")
         return
 
     try:
         matrix = np.loadtxt(fim_file, dtype=str)
     except Exception as e:
-        print(f"Error: Unable to load {fim_file}: {e}")
+        print(f"Erreur: Impossible de charger {fim_file}: {e}")
         return
 
     # Chargement de n, m, et h

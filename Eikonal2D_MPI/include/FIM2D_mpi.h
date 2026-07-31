@@ -76,10 +76,10 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 // (Par exemple, si on a un recouvrement de 3 pixels alors chaque sous domain MPI propage l'onde sur 3 pixels)
 // depth[k] permet de connaitre la distance entre la maille k et la source
 // frontier[k] vaut 1 si la maille k a été parcourue lors du dernier tour de la FIM (elle deviendra donc une maille de départ lors du prochain appel à local_propagate), 0 sinon
-int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier);
+void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier);
 
 
 // FIM avec utilisation du MPI
-void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg, double espilon, int nb_cycles);
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg, int* start, double espilon, int nb_cycles);
 
 #endif /* FIM2D_MPI_H */
