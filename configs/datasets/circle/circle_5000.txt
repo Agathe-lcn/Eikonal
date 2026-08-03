@@ -6,7 +6,7 @@ h = 0.0002000000
 # Parametres : rayon=0.28, ep1=0.1, ep2=0.1
 # Nombre de sources : 9706
 
-sources :
+sources:
 1100 2463
 1100 2464
 1100 2465

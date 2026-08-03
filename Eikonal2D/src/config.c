@@ -170,8 +170,8 @@ Config read_config(const char* filename){
 
     char line[MAX_LINE];
     int section = 0;    // 0: aucune, 1: sources, 2: murs
-    int max_sources = 200;
-    int max_walls = 200;
+    int max_sources = 10000;
+    int max_walls = 1000;
 
     // Allocations
     cfg.src_i = (int*)malloc(max_sources * sizeof(int));

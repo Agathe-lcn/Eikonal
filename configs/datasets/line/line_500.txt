@@ -6,7 +6,7 @@ h = 0.0020000000
 # Parametres : angle=-20, longueur=0.5, hauteur=0.15, decalage=0.1
 # Nombre de sources : 251
 
-sources :
+sources:
 156 284
 157 284
 158 283

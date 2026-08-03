@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import os
 from matplotlib.colors import ListedColormap
 import matplotlib.colors as mcolors
+import sys
 
-def visualize_fim():
+def visualize_fim(config_file="config.txt"):
     # Chargement de la matrice FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
@@ -21,13 +22,15 @@ def visualize_fim():
     n,m = matrix.shape
 
     h = 1   # Valeur par défaut
-    if os.path.exists("config.txt"):
-        with open("config.txt", "r") as f:
+    if os.path.exists(config_file):
+        with open(config_file, "r") as f:
             for line in f:
                 line = line.strip()
                 if "h =" in line:
                     h = float(line.split("=")[1].strip())
-    
+    else:
+        print(f"Erreur: Fichier {config_file} pas trouvé, h=1 utilisé par défaut")
+  
     # Conversion en flottant
     T_fim = np.zeros((n,m))
     for i in range(n):
@@ -91,4 +94,5 @@ def visualize_fim():
 
 
 if __name__ == "__main__":
-    visualize_fim()
+    config_file = sys.argv[1] if len(sys.argv) > 1 else "config.txt"
+    visualize_fim(config_file)

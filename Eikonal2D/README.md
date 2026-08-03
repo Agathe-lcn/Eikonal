@@ -17,7 +17,7 @@ pip install numpy matplotlib pandas
 
 ## Compilation
 
-Compiler tours les exécutables:
+Compiler tous les exécutables:
 
 ```bash
 make all
@@ -46,6 +46,12 @@ make clean
 
 ```bash
 ./bin/generate_grid mon_fichier.txt
+```
+
+ou
+
+```bash
+make run-generate ARGS=mon_fichier.txt
 ```
 
 Si aucun fichier n'est fourni en argument, `generate_grid` cherche automatiquement un fichier nommé `config.txt` dans le dossier courant.

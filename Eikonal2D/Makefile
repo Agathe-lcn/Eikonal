@@ -36,21 +36,22 @@ $(BIN_DIR)/benchmark_fim: $(GRID_DIR)/benchmark_fim.c $(SRC_COMMON) | dirs
 
 # Cibles pour exécuter chaque programme
 run-generate: $(BIN_DIR)/generate_grid
-	./$(BIN_DIR)/generate_grid config.txt
+	@if [ -z "$(ARGS)" ]; then \
+		./$(BIN_DIR)/generate_grid config.txt; \
+	else \
+		./$(BIN_DIR)/generate_grid $(ARGS); \
+	fi
 
 run-1source: $(BIN_DIR)/1_source
-	./$(BIN_DIR)/1_source config.txt
+	./$(BIN_DIR)/1_source
 
 run-5sources: $(BIN_DIR)/5_sources_1_wall
-	./$(BIN_DIR)/5_sources_1_wall config.txt
+	./$(BIN_DIR)/5_sources_1_wall
 
 # Exécution du benchmark
 benchmark: $(BIN_DIR)/benchmark_fim
 	./$(BIN_DIR)/benchmark_fim
 
-# Exécution par défaut (generate_grid)
-run: all
-	./$(BIN_DIR)/generate_grid config.txt
 
 clean:
 	rm -rf $(BIN_DIR)

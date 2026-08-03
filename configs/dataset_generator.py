@@ -79,7 +79,7 @@ def save_dataset(path,n,h,sources,scenario,params):
         f.write(f"# Scenario : {scenario}\n")
         f.write(f"# Parametres : {params}\n")
         f.write(f"# Nombre de sources : {len(sources)}\n\n")
-        f.write("sources :\n")
+        f.write("sources:\n")
         for x,y in sources:
             f.write(f"{x} {y}\n")
 
