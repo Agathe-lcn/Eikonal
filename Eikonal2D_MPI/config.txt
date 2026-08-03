@@ -1,9 +1,10 @@
-n = 200
-m = 200
-h = 0.005
+n = 40
+m = 40
+h = 0.05
 
+# une par ligne
 sources:
-80 100
-120 50
+15 20
 
+# un par ligne (colonne_de_départ colonne_de_fin ligne_de_départ ligne_de_fin)
 walls:

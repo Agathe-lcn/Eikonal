@@ -410,7 +410,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
  
     int* frontier = (int*)malloc(ncell * sizeof(int));
     int* depth = (int*)malloc(ncell * sizeof(int));
-    int* changed_cells = (int*)malloc(domain->n_overlap * domain->m * sizeof(int));
+    int* changed_cells = (int*)calloc(domain->n_overlap * domain->m, sizeof(int));
 
     int cycle = 0;
     while(true){

@@ -2,6 +2,8 @@
 #define FIM2D_MPI_H
 
 #include <mpi.h>
+#include <stdbool.h>
+
 #include "../../Eikonal2D/include/SolveEikonal2D.h"
 #include "../../Eikonal2D/include/FIM2D.h"
 
@@ -56,6 +58,8 @@ typedef struct{
     int* wall_c2;
     int* wall_r1;
     int* wall_r2;
+
+    bool valid;
 }Config2;
 
 
