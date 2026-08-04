@@ -1,5 +1,7 @@
 #include "../include/FIM2D_mpi.h"
 
+#include "../include/FIM2D_io.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -245,6 +247,34 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     return any_change;
 }
 
+void save_local_txt(const char* step_name, MPIDomain* domain, EikonalGrid* g_processus) {
+    char filename[256];
+    snprintf(filename, sizeof(filename), "%s_proc%d.txt", step_name, domain->rank);
+    
+    FILE* f = fopen(filename, "w");
+    if (!f) return;
+
+    int n = g_processus->n; // Hauteur mémoire totale (n_owned + ghost cells)
+    int m = g_processus->m; // Largeur
+
+    // En-tête : n, m
+    fprintf(f, "%d %d\n", n, m);
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            double val = g_processus->T[i * m + j];
+            if (val > 1e10) {
+                fprintf(f, "INF ");
+            } else {
+                fprintf(f, "%.4f ", val);
+            }
+        }
+        fprintf(f, "\n");
+    }
+
+    fclose(f);
+}
+
 
 void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
     int n = g_processus->n;
@@ -393,6 +423,8 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
 }
 
 
+
+
 void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, int* start, double epsilon, int nb_cycles){
     int n = g_processus->n;
     int m = g_processus->m;
@@ -411,6 +443,8 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     int* depth = (int*)malloc(ncell * sizeof(int));
     int* changed_cells = (int*)calloc(domain->n_overlap * domain->m, sizeof(int));
 
+    MPI_Info info = MPI_INFO_NULL;
+
     int cycle = 0;
     while(true){
 
@@ -420,8 +454,26 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         // On fait la propagation sur 'overlap' cellules de distance
         local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
 
+        // TEST: visu 1 juste avant la première communication
+        if (cycle == 0){
+            FIMIO_Checkpoint("step1_avant_comm1", domain, g_processus, -1, info);
+            save_local_txt("step1_avant_comm1", domain, g_processus);
+        }
+
+        // TEST: visu 4 après 2e FIM et juste avant 2e comm
+        if (cycle == 1){
+            FIMIO_Checkpoint("step4_avant_comm2", domain, g_processus, -1, info);
+            save_local_txt("step4_avant_comm2", domain, g_processus);
+        }
+
         // Communication entre les processus
         int changed = exchange_overlap(domain, g_processus, changed_cells);
+
+        // TEST: visu 2 juste après la première communication
+        if (cycle == 0){
+            FIMIO_Checkpoint("step2_apres_comm1", domain, g_processus, -1, info);
+            save_local_txt("step2_apres_comm1", domain, g_processus);
+        }
 
         // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
         memset(start, 0, ncell * sizeof(int));
@@ -435,6 +487,12 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
                 start[k] = 1;
                 continue_local = 1;
             }
+        }
+
+        // TEST 3: visu après synchronisation (donc état cohérent, prêt pour le cycle suivant)
+        if (cycle == 0){
+            FIMIO_Checkpoint("step3_synchro_coherente", domain, g_processus, -1, info);
+            save_local_txt("step3_synchro_coherente", domain, g_processus);
         }
 
         cycle++;
@@ -478,6 +536,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
             printf("[Processus %d] Arrêt forcé de test à 5000 cycles.\n", domain->rank);
         break;
         }
+        
     }
 
     //TEST

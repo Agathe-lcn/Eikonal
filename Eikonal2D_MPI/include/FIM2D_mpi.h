@@ -7,6 +7,7 @@
 #include "../../Eikonal2D/include/SolveEikonal2D.h"
 #include "../../Eikonal2D/include/FIM2D.h"
 
+
 typedef struct{
     MPI_Comm comm;
     MPI_Comm exch_comm; // Communicateur pour les échanges de recouvrement

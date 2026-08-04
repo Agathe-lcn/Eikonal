@@ -1,4 +1,3 @@
-
 #include "../include/FIM2D_io.h"
 
 #include <stdio.h>
