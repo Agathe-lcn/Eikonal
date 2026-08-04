@@ -65,7 +65,7 @@ for i, (title_step, prefix) in enumerate(steps):
         ax_p0.set_title(f"{title_step} [Proc 0 - BAS]", fontsize=9, fontweight='bold', color='darkgreen')
         
         n_p0 = p0_matrix.shape[0]
-        # Frontière 1 : Séparation Domaine Possédé / Ghost Cells (Haut)
+        # Frontière 1 : Séparation Domaine Possédé / zone de recouvrement (Haut)
         b1_p0 = n_p0 - OVERLAP - 0.5
         # Frontière 2 : Limite de la bande de 2px possédée et accessible par Proc 1
         b2_p0 = n_p0 - 2 * OVERLAP - 0.5
@@ -74,7 +74,7 @@ for i, (title_step, prefix) in enumerate(steps):
         ax_p0.axhline(y=b2_p0, color='orange', linestyle='--', linewidth=1.5)
         
         # Annotations textuelles
-        ax_p0.text(0.5, b1_p0 + 0.3, "▲ Ghost Cells (Reçues du Proc 1)", color='red', fontsize=7, fontweight='bold')
+        ax_p0.text(0.5, b1_p0 + 0.3, "▲ Overlap non Possédé (Reçues du Proc 1)", color='red', fontsize=7, fontweight='bold')
         ax_p0.text(0.5, b1_p0 - 0.7, "▼ Overlap Possédé (Envoyé au Proc 1)", color='orange', fontsize=7, fontweight='bold')
         ax_p0.text(0.5, b2_p0 - 0.7, "▼ Domaine Intérieur Propre", color='gray', fontsize=7)
         
@@ -88,7 +88,7 @@ for i, (title_step, prefix) in enumerate(steps):
         im_p1 = ax_p1.imshow(p1_matrix, cmap='viridis', origin='lower')
         ax_p1.set_title(f"{title_step} [Proc 1 - HAUT]", fontsize=9, fontweight='bold', color='darkred')
         
-        # Frontière 1 : Séparation Ghost Cells (Bas) / Domaine Possédé
+        # Frontière 1 : Séparation zone de recouvrement (Bas) / Domaine Possédé
         b1_p1 = OVERLAP - 0.5
         # Frontière 2 : Limite de la bande de 2px possédée et accessible par Proc 0
         b2_p1 = 2 * OVERLAP - 0.5
@@ -97,7 +97,7 @@ for i, (title_step, prefix) in enumerate(steps):
         ax_p1.axhline(y=b2_p1, color='orange', linestyle='--', linewidth=1.5)
         
         # Annotations textuelles
-        ax_p1.text(0.5, b1_p1 - 0.7, "▼ Ghost Cells (Reçues du Proc 0)", color='red', fontsize=7, fontweight='bold')
+        ax_p1.text(0.5, b1_p1 - 0.7, "▼ Overlap non Possédé (Reçues du Proc 0)", color='red', fontsize=7, fontweight='bold')
         ax_p1.text(0.5, b1_p1 + 0.3, "▲ Overlap Possédé (Envoyé au Proc 0)", color='orange', fontsize=7, fontweight='bold')
         ax_p1.text(0.5, b2_p1 + 0.3, "▲ Domaine Intérieur Propre", color='gray', fontsize=7)
         
