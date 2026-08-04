@@ -8,6 +8,7 @@
 
 #define TAG 0
 #define TEST_MODE 0     // 1 pour désactiver les communications et 0 pour les activer
+#define DEBUG_COMM_PHASES 2   // arrêter après la 2e communication MPI
 
 MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPIDomain* domain = (MPIDomain*)malloc(sizeof(MPIDomain));
@@ -136,7 +137,24 @@ void topology_free(MPIDomain* domain){
 }
 
 
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells){
+static void write_exchange_trace(MPIDomain* domain, int cycle, int communication_count, const char* direction, const char* stage,
+                                 int local_row, int local_col, double value, double old_T, double new_T, int updated){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_exchange_rank%d.txt", domain->rank);
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    int global_row = domain->i_start_overlap + local_row;
+    fprintf(file,
+            "cycle=%d comm=%d rank=%d direction=%s stage=%s local=(%d,%d) global=(%d,%d) value=%.6f old_T=%.6f new_T=%.6f updated=%d\n",
+            cycle, communication_count, domain->rank, direction, stage,
+            local_row, local_col, global_row, local_col, value, old_T, new_T, updated);
+    fclose(file);
+}
+
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int cycle, int communication_count){
     // Si on veut tester sans les communications, alors on ne fait rien
     #if TEST_MODE
         return 0;
@@ -146,37 +164,31 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     int overlap = domain->overlap;
     int any_change = 0;
 
-    // TEST
-    //printf("[rank %d] exchange_overlap : m=%d overlap=%d buffer_size=%d n_overlap=%d\n", domain->rank, m, overlap, overlap * m, domain->n_overlap);
-    //fflush(stdout);
-
-    // On remet tout le tableau à zéro
     memset(changed_cells, 0, domain->n_overlap*m*sizeof(int));
-
-    MPI_Request reqs[4];
 
     double* send_up = NULL;
     double* send_down = NULL;
     double* recv_up = NULL;
     double* recv_down = NULL;
 
-
-    // Pour l'échange avec le voisin du dessus, on vérifie que le processus n'est pas tout en haut
     int do_up = domain->up_rank != MPI_PROC_NULL && domain->top_ghost > 0;
     if (do_up){
         send_up = (double*)malloc(overlap * m * sizeof(double));
         recv_up = (double*)malloc(overlap * m * sizeof(double));
         memcpy(send_up, g_processus->T + domain->top_ghost*m, overlap * m * sizeof(double));
 
-        // TEST
-        //printf("[rank %d] Sendrecv avec up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, overlap*m);
-        //fflush(stdout);
+        for (int offset = 0; offset < overlap; offset++){
+            int local_row = domain->top_ghost + offset;
+            for (int col = 0; col < m; col++){
+                int idx = offset * m + col;
+                write_exchange_trace(domain, cycle, communication_count, "up", "send",
+                                     local_row, col, send_up[idx], 0.0, 0.0, 0);
+            }
+        }
 
         MPI_Sendrecv(send_up, overlap*m, MPI_DOUBLE, domain->up_rank, TAG, recv_up, overlap*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
-
-    // Pour l'échange avec le voisin du dessous, on vérifie que le processus n'est pas tout en bas
     int do_down = domain->down_rank != MPI_PROC_NULL && domain->bottom_ghost > 0;
     if (do_down){
         send_down = (double*)malloc(overlap * m * sizeof(double));
@@ -184,32 +196,36 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         int send_offset = (domain->n_overlap - domain->bottom_ghost - overlap) * m;
         memcpy(send_down, g_processus->T + send_offset, overlap * m * sizeof(double));
 
-        // TEST
-        //printf("[rank %d] Sendrecv avec down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, overlap*m);
-        //fflush(stdout);
+        for (int offset = 0; offset < overlap; offset++){
+            int local_row = domain->n_overlap - domain->bottom_ghost - overlap + offset;
+            for (int col = 0; col < m; col++){
+                int idx = offset * m + col;
+                write_exchange_trace(domain, cycle, communication_count, "down", "send",
+                                     local_row, col, send_down[idx], 0.0, 0.0, 0);
+            }
+        }
 
         MPI_Sendrecv(send_down, overlap*m, MPI_DOUBLE, domain->down_rank, TAG, recv_down, overlap*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
-
-    // Test
-    //printf("[rank %d] échanges Send/Recv termines\n", domain->rank);
-    //fflush(stdout);
-
-
-
-    // Comparaison des valeurs de T entre le processus courant et son voisin du haut pour garder le minimum à chaque cellule
     if (recv_up){
         for (int k = 0; k < overlap*m; k++){
+            int local_row = k / m;
+            int local_col = k % m;
+            int global_row = domain->i_start_overlap + local_row;
             double old_T = g_processus->T[k];
             double new_T = recv_up[k];
+            write_exchange_trace(domain, cycle, communication_count, "up", "recv",
+                                 local_row, local_col, new_T, old_T, new_T, 0);
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
-
-                // Test
-                //printf("[rank %d] up: cellule k=%d mise à jour %.4f -> %.4f\n", domain->rank, k, old_T, new_T);
+                write_exchange_trace(domain, cycle, communication_count, "up", "apply",
+                                     local_row, local_col, new_T, old_T, new_T, 1);
+            } else {
+                write_exchange_trace(domain, cycle, communication_count, "up", "keep",
+                                     local_row, local_col, new_T, old_T, new_T, 0);
             }
         }
 
@@ -217,20 +233,24 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         free(recv_up);
     }
 
-
-    // Comparaison des valeurs de T entre le processus courant et son voisin du bas pour garder le minimum à chaque cellule
     if (recv_down){
         int beginning = (domain->n_overlap - overlap) * m;
         for (int k = beginning; k < beginning + overlap*m; k++){
+            int local_row = (k / m);
+            int local_col = k % m;
             double old_T = g_processus->T[k];
             double new_T = recv_down[k - beginning];
+            write_exchange_trace(domain, cycle, communication_count, "down", "recv",
+                                 local_row, local_col, new_T, old_T, new_T, 0);
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
-
-                // Test
-                //printf("[rank %d] down: cellule k=%d mise à jour %.4f -> %.4f\n", domain->rank, k, old_T, new_T);
+                write_exchange_trace(domain, cycle, communication_count, "down", "apply",
+                                     local_row, local_col, new_T, old_T, new_T, 1);
+            } else {
+                write_exchange_trace(domain, cycle, communication_count, "down", "keep",
+                                     local_row, local_col, new_T, old_T, new_T, 0);
             }
         }
 
@@ -238,18 +258,15 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         free(recv_down);
     }
 
-    // Test
-    //printf("[rank %d] exchange_overlap terminé, any_change=%d\n", domain->rank, any_change);
-    //fflush(stdout);
-
     return any_change;
 }
 
 
-void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
+int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n*m;
+    int local_changed = 0;
 
     // TEST
     /*printf("[Processus] === DEBUT local_propagate ===\n");
@@ -316,6 +333,8 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
         }
 
         double diff = fabs(g_processus->T[index] - T_old);
+        if (diff > epsilon)
+            local_changed = 1;
 
         //TEST
         //printf("[Processus] T_old=%f, T_new=%f, diff=%f\n", T_old, g_processus->T[index], diff);
@@ -345,6 +364,7 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
                     
                     if (T_neighbor_new < g_processus->T[index_neighbor] - epsilon){
                         g_processus->T[index_neighbor] = T_neighbor_new;
+                        local_changed = 1;
 
                         // TEST
                         //printf("[Processus] Voisin (%d,%d) mis à jour: %f\n", ni, nj, T_neighbor_new);
@@ -390,8 +410,154 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
 
     // Nettoyage
     list_free(narrow);
+    return local_changed;
 }
 
+
+static void write_debug_trace(MPIDomain* domain, int cycle, const char* phase, int local_changed, int changed, int continue_local, int continue_global, int communication_count){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_debug_rank%d.txt", domain->rank);
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    fprintf(file,
+            "cycle=%d phase=%s comm=%d rank=%d local_changed=%d changed=%d continue_local=%d continue_global=%d\n",
+            cycle, phase, communication_count, domain->rank, local_changed, changed, continue_local, continue_global);
+    fclose(file);
+}
+
+static void write_cycle_summary(MPIDomain* domain, int cycle, int communication_count, int local_changed, int changed, int continue_local, int continue_global){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_cycle_summary.txt");
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    fprintf(file,
+            "cycle=%d comm=%d rank=%d local_changed=%d changed=%d continue_local=%d continue_global=%d\n",
+            cycle, communication_count, domain->rank, local_changed, changed, continue_local, continue_global);
+    fclose(file);
+}
+
+static void dump_boundary_state(MPIDomain* domain, EikonalGrid* g_processus, int cycle, int communication_count, const int* start, const int* frontier, const int* changed_cells){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_boundary_rank%d.txt", domain->rank);
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    fprintf(file, "=== cycle %d comm %d rank %d ===\n", cycle, communication_count, domain->rank);
+    fprintf(file, "owned=[%d,%d] overlap=[%d,%d] n_overlap=%d top_ghost=%d bottom_ghost=%d\n",
+            domain->i_owned_start, domain->i_owned_end,
+            domain->i_start_overlap, domain->i_end_overlap,
+            domain->n_overlap, domain->top_ghost, domain->bottom_ghost);
+
+    int m = domain->m;
+
+    fprintf(file, "top boundary:\n");
+    for (int i = 0; i < domain->top_ghost; i++){
+        int local_row = i;
+        int global_row = domain->i_start_overlap + local_row;
+        for (int j = 0; j < m; j++){
+            int idx = local_row * m + j;
+            fprintf(file, "  local=(%d,%d) global=(%d,%d) T=%.6f start=%d frontier=%d changed=%d\n",
+                    local_row, j, global_row, j, g_processus->T[idx], start[idx], frontier[idx], changed_cells[idx]);
+        }
+    }
+
+    fprintf(file, "bottom boundary:\n");
+    for (int i = 0; i < domain->bottom_ghost; i++){
+        int local_row = g_processus->n - 1 - i;
+        int global_row = domain->i_start_overlap + local_row;
+        for (int j = 0; j < m; j++){
+            int idx = local_row * m + j;
+            fprintf(file, "  local=(%d,%d) global=(%d,%d) T=%.6f start=%d frontier=%d changed=%d\n",
+                    local_row, j, global_row, j, g_processus->T[idx], start[idx], frontier[idx], changed_cells[idx]);
+        }
+    }
+
+    fclose(file);
+}
+
+static void dump_active_cells(MPIDomain* domain, EikonalGrid* g_processus, int cycle, int communication_count, const int* start, const int* frontier, const int* changed_cells){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_active_rank%d.txt", domain->rank);
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    fprintf(file, "=== cycle %d comm %d rank %d ===\n", cycle, communication_count, domain->rank);
+
+    int count = 0;
+    for (int k = 0; k < g_processus->n * g_processus->m; k++){
+        if (start[k] || frontier[k] || changed_cells[k]){
+            int local_row = k / domain->m;
+            int local_col = k % domain->m;
+            int global_row = domain->i_start_overlap + local_row;
+            int global_col = local_col;
+            if (count < 160){
+                fprintf(file, "  cell[%d] local=(%d,%d) global=(%d,%d) start=%d frontier=%d changed=%d T=%.6f\n",
+                        k, local_row, local_col, global_row, global_col, start[k], frontier[k], changed_cells[k], g_processus->T[k]);
+            }
+            count++;
+        }
+    }
+
+    fprintf(file, "active_count=%d\n", count);
+    fclose(file);
+}
+
+static void dump_partial_grid(MPIDomain* domain, EikonalGrid* g_processus, int cycle, int communication_count){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_grid_rank%d.txt", domain->rank);
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    fprintf(file, "=== cycle %d comm %d rank %d ===\n", cycle, communication_count, domain->rank);
+    for (int i = 0; i < g_processus->n; i++){
+        fprintf(file, "row %d: ", i);
+        for (int j = 0; j < g_processus->m; j++){
+            fprintf(file, "%.6f ", g_processus->T[i * g_processus->m + j]);
+        }
+        fprintf(file, "\n");
+    }
+    fprintf(file, "\n");
+    fclose(file);
+}
+
+static void dump_halo_exchange(MPIDomain* domain, EikonalGrid* g_processus, int cycle, int communication_count, const int* changed_cells){
+    char filename[256];
+    snprintf(filename, sizeof(filename), "mpi_halo_rank%d.txt", domain->rank);
+
+    FILE* file = fopen(filename, "a");
+    if (!file)
+        return;
+
+    fprintf(file, "=== cycle %d comm %d rank %d ===\n", cycle, communication_count, domain->rank);
+    fprintf(file, "neighbors: up=%d down=%d\n", domain->up_rank, domain->down_rank);
+
+    int m = domain->m;
+    fprintf(file, "top halo values:\n");
+    for (int i = 0; i < domain->top_ghost; i++){
+        int idx = i * m;
+        fprintf(file, "  [%d] T=%.6f changed=%d\n", idx, g_processus->T[idx], changed_cells[idx]);
+    }
+
+    fprintf(file, "bottom halo values:\n");
+    for (int i = 0; i < domain->bottom_ghost; i++){
+        int idx = (g_processus->n - 1 - i) * m;
+        fprintf(file, "  [%d] T=%.6f changed=%d\n", idx, g_processus->T[idx], changed_cells[idx]);
+    }
+
+    fclose(file);
+}
 
 void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, int* start, double epsilon, int nb_cycles){
     int n = g_processus->n;
@@ -412,28 +578,44 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     int* changed_cells = (int*)calloc(domain->n_overlap * domain->m, sizeof(int));
 
     int cycle = 0;
+    int communication_count = 0;
     while(true){
 
-        // TEST
-        //printf("[Processus %d] Cycle %d - avant local_propagate\n", domain->rank, cycle);
+        // 1. DUMP AVANT CALCUL LOCAL (Début réel du cycle)
+        printf("[rank %d] cycle %d - before local propagation\n", domain->rank, cycle);
+        fflush(stdout);
+        dump_boundary_state(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
+        dump_active_cells(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
 
-        // On fait la propagation sur 'overlap' cellules de distance
-        local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
+        // 2. CALCUL LOCAL
+        int local_changed = local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
 
-        // Communication entre les processus
-        int changed = exchange_overlap(domain, g_processus, changed_cells);
+        // 3. DUMP APRÈS CALCUL LOCAL / AVANT COMMUNICATION
+        printf("[rank %d] cycle %d - before communication (local_changed=%d)\n", domain->rank, cycle, local_changed);
+        fflush(stdout);
+        write_cycle_summary(domain, cycle, communication_count, local_changed, 0, local_changed, 0);
+        dump_boundary_state(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
+        dump_active_cells(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
 
-        // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
+        // 4. COMMUNICATION ENTRE LES PROCESSUS
+        int changed = exchange_overlap(domain, g_processus, changed_cells, cycle, communication_count);
+        int continue_local = local_changed || changed;
+
+        // 5. DUMP APRÈS COMMUNICATION
+        communication_count++;
+        printf("[rank %d] cycle %d - after communication %d (changed=%d)\n", domain->rank, cycle, communication_count, changed);
+        fflush(stdout);
+        write_cycle_summary(domain, cycle, communication_count, local_changed, changed, continue_local, 0);
+        dump_boundary_state(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
+        dump_active_cells(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
+        dump_halo_exchange(domain, g_processus, cycle, communication_count, changed_cells);
+        dump_partial_grid(domain, g_processus, cycle, communication_count);
+
+        // Les mailles de départ du prochain cycle sont celles sur lesquelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
         memset(start, 0, ncell * sizeof(int));
-        int continue_local = 0;
         for (int k = 0; k < ncell; k++){
-            if (frontier[k]){
+            if (frontier[k] || changed_cells[k]){
                 start[k] = 1;
-                continue_local = 1;
-            }
-            if (changed_cells[k]){
-                start[k] = 1;
-                continue_local = 1;
             }
         }
 
@@ -467,16 +649,31 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         int continue_global = 0;
         MPI_Allreduce(&continue_local, &continue_global, 1, MPI_INT, MPI_MAX, domain->comm);
 
+        printf("[rank %d] cycle %d - before global decision: local=%d global=%d\n", domain->rank, cycle, continue_local, continue_global);
+        fflush(stdout);
+        write_debug_trace(domain, cycle, "after_comm", local_changed, changed, continue_local, continue_global, communication_count);
+
         // TEST
         //printf("[Processus %d] Sortie de Allreduce, continue_global = %d\n", domain->rank, cycle, continue_global);
         //fflush(stdout);
 
-        if (!continue_global)
+        if (!continue_global){
+            printf("[rank %d] cycle %d - stop because continue_global=0\n", domain->rank, cycle);
+            fflush(stdout);
+            write_debug_trace(domain, cycle, "stop_global", local_changed, changed, continue_local, continue_global, communication_count);
             break;
+        }
+
+        if (communication_count >= DEBUG_COMM_PHASES){
+            printf("[rank %d] cycle %d - stop after communication phase %d\n", domain->rank, cycle, communication_count);
+            fflush(stdout);
+            write_debug_trace(domain, cycle, "stop_debug_phase", local_changed, changed, continue_local, continue_global, communication_count);
+            break;
+        }
 
         if (cycle >= 5000) {
             printf("[Processus %d] Arrêt forcé de test à 5000 cycles.\n", domain->rank);
-        break;
+            break;
         }
     }
 

@@ -74,13 +74,14 @@ void topology_free(MPIDomain* domain);
 
 // Echange la bande de recouvrement avec les voisins en haut et en bas, et applique le minimum sur T
 // Retourne 1 si au moins une valeur a été améliorée pour le processus et 0 sinon
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells);
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int cycle, int communication_count);
 
 // Propagation de l'onde à partir des mailles start sur autant de pixels que la valeur du recouvrement
 // (Par exemple, si on a un recouvrement de 3 pixels alors chaque sous domain MPI propage l'onde sur 3 pixels)
 // depth[k] permet de connaitre la distance entre la maille k et la source
 // frontier[k] vaut 1 si la maille k a été parcourue lors du dernier tour de la FIM (elle deviendra donc une maille de départ lors du prochain appel à local_propagate), 0 sinon
-void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier);
+// Retourne 1 si au moins une valeur a été améliorée localement pendant cette propagation, 0 sinon
+int local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier);
 
 
 // FIM avec utilisation du MPI
