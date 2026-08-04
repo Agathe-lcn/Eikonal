@@ -9,7 +9,7 @@
 
 #define EPSILON 1e-12
 #define MAX_LINE 1024
-#define TEST_MODE 1     // 1 pour désactiver les communications et 0 pour les activer
+#define TEST_MODE 0     // 1 pour désactiver les communications et 0 pour les activer
 
 // Lecture du fichier de configuration
 Config2 read_config_mpi(const char* filename){
@@ -156,9 +156,9 @@ int removing_sources_in_walls_local(EikonalGrid* g_processus, Config2* cfg, MPID
     int local_count = 0;
 
     // TEST
-    printf("========== DEBUT removing_sources_in_walls_local ==========\n");
-    printf("[Processus %d] cfg->nsources = %d\n", domain->rank, cfg->nsources);
-    printf("[Processus %d] domain->i_start_overlap=%d, domain->i_end_overlap=%d\n", domain->rank, domain->i_start_overlap, domain->i_end_overlap);
+    //printf("========== DEBUT removing_sources_in_walls_local ==========\n");
+    //printf("[Processus %d] cfg->nsources = %d\n", domain->rank, cfg->nsources);
+    //printf("[Processus %d] domain->i_start_overlap=%d, domain->i_end_overlap=%d\n", domain->rank, domain->i_start_overlap, domain->i_end_overlap);
 
 
     for (int s=0; s < cfg->nsources; s++){
@@ -166,13 +166,13 @@ int removing_sources_in_walls_local(EikonalGrid* g_processus, Config2* cfg, MPID
         int j_global = cfg->src_j[s];
 
         // TEST
-        printf("[Processus %d] Source %d globale: (%d, %d)\n", domain->rank, s, i_global, j_global);
+        //printf("[Processus %d] Source %d globale: (%d, %d)\n", domain->rank, s, i_global, j_global);
 
         // 1er cas: la source est en dehors du sous-domaine du processus
         if (i_global < domain->i_start_overlap || i_global > domain->i_end_overlap){
 
             // TEST
-            printf("[Processus %d]   -> HORS ZONE, on la garde\n", domain->rank);
+            //printf("[Processus %d]   -> HORS ZONE, on la garde\n", domain->rank);
 
             // On la conserve telle qu'elle est car elle sera traitée par un autre processus
             cfg->src_i[valid] = i_global;
@@ -187,7 +187,7 @@ int removing_sources_in_walls_local(EikonalGrid* g_processus, Config2* cfg, MPID
         int j_local = j_global;
 
         // TEST
-        printf("[Processus %d]   -> DANS ZONE -> locale (%d, %d)\n", domain->rank, i_local, j_local);
+        //printf("[Processus %d]   -> DANS ZONE -> locale (%d, %d)\n", domain->rank, i_local, j_local);
 
         // On vérifie si la source est dans un mur
         if (eikonal_grid_is_obstacle(g_processus, i_local, j_local)){
@@ -198,7 +198,7 @@ int removing_sources_in_walls_local(EikonalGrid* g_processus, Config2* cfg, MPID
         // Si la source est valide, on la conserve puis on l'ajoute aux sources locales
 
         // TEST
-        printf("[Processus %d]   -> VALIDE\n", domain->rank);
+        //printf("[Processus %d]   -> VALIDE\n", domain->rank);
 
         cfg->src_i[valid] = i_global;
         cfg->src_j[valid] = j_global;
@@ -211,8 +211,8 @@ int removing_sources_in_walls_local(EikonalGrid* g_processus, Config2* cfg, MPID
     cfg->nsources_overlap = local_count;
 
     // TEST
-    printf("[Processus %d] RESULTAT: %d sources valides, %d sources locales\n", domain->rank, valid, local_count);
-    printf("========== FIN removing_sources_in_walls_local ==========\n");
+    //printf("[Processus %d] RESULTAT: %d sources valides, %d sources locales\n", domain->rank, valid, local_count);
+    //printf("========== FIN removing_sources_in_walls_local ==========\n");
 
     return local_count;
 }
@@ -243,8 +243,8 @@ void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_process
     int ncell = n * m;
 
     // TEST
-    printf("========== DEBUT initialize_grid_with_sources ==========\n");
-    printf("[Processus %d] n=%d, m=%d, ncell=%d\n", domain->rank, n, m, ncell);
+    //printf("========== DEBUT initialize_grid_with_sources ==========\n");
+    //printf("[Processus %d] n=%d, m=%d, ncell=%d\n", domain->rank, n, m, ncell);
     
     // Initialisation: définit toutes les mailles à +inf
     for (int k = 0; k < ncell; k++)
@@ -256,20 +256,20 @@ void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_process
     int* src_j_overlap = cfg_processus->src_j_overlap;
 
     // TEST
-    printf("[Processus %d] ns_local = %d\n", domain->rank, ns_local);
+    //printf("[Processus %d] ns_local = %d\n", domain->rank, ns_local);
     
     for (int s = 0; s < ns_local; s++){
         int i = src_i_overlap[s];
         int j = src_j_overlap[s];
 
         // TEST
-        printf("[Processus %d] Source %d: (%d, %d)\n", domain->rank, s, i, j);
+        //printf("[Processus %d] Source %d: (%d, %d)\n", domain->rank, s, i, j);
         
         // Vérification des limites
         if (i < 0 || i >= n || j < 0 || j >= m){
 
             // TEST
-            printf("[Processus %d] ERREUR: Source %d hors limites! (%d, %d) n=%d m=%d\n", domain->rank, s, i, j, n, m);
+            //printf("[Processus %d] ERREUR: Source %d hors limites! (%d, %d) n=%d m=%d\n", domain->rank, s, i, j, n, m);
 
             continue;
         }
@@ -279,18 +279,18 @@ void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_process
         start[index] = 1;   // On marque la source comme point de départ
 
         // TEST
-        printf("[Processus %d] Source %d -> index=%d, T=0, start=1\n", domain->rank, s, index);
+        //printf("[Processus %d] Source %d -> index=%d, T=0, start=1\n", domain->rank, s, index);
     }
 
     // TEST
-    int nb_start = 0;
+    /*int nb_start = 0;
     int nb_zeros = 0;
     for (int k = 0; k < ncell; k++) {
         if (start[k]) nb_start++;
         if (g_processus->T[k] == 0.0) nb_zeros++;
     }
     printf("[Processus %d] FIN initialize: start=%d, T zeros=%d\n", domain->rank, nb_start, nb_zeros);
-    printf("========== FIN initialize_grid_with_sources ==========\n");
+    printf("========== FIN initialize_grid_with_sources ==========\n");*/
 }
 
 // 2 paramètres : le premier correspond à l'overlap et le second au fichier de configuration
@@ -415,7 +415,7 @@ int main(int argc, char** argv){
     fim_solve_mpi(domain, g_processus, &cfg_processus, start, EPSILON, -1);
 
     // Dans le cas où on veut tester dans les communications, chaque processus sauvegarde ses résultats dans un fichier différent
-    #ifdef TEST_MODE
+    #if TEST_MODE
         char filename[256];
         snprintf(filename, sizeof(filename), "result_test_rank%d.txt", rank);
         

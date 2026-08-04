@@ -136,7 +136,7 @@ def visualize_fim_rank(rank, h, i_start_overlap, all_sources):
         plt.scatter(xs, ys, color='red', s=10, marker='.', label="Source" if len(local_sources) == 1 else "", edgecolors='red', linewidth=1)
     if len(local_sources) > 1:
         plt.scatter([], [], color='red', s=10, marker='.', label="Sources")
-    if local_sources:
+    if len(local_sources) > 0:
         plt.legend()
 
     plt.axis('equal')
