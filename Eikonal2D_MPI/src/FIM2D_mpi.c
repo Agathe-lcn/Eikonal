@@ -350,7 +350,8 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
                         //printf("[Processus] Voisin (%d,%d) mis à jour: %f\n", ni, nj, T_neighbor_new);
 
                         // On met à jour la profondeur du voisin
-                        depth[index_neighbor] = current_depth + 1;
+                        if (depth[index_neighbor] < 0 || depth[index_neighbor] > current_depth +1)
+                            depth[index_neighbor] = current_depth + 1;
 
                         if (!list_contains(narrow, index_neighbor)){
                             list_push_back(narrow, index_neighbor);
