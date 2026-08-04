@@ -423,7 +423,6 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
 
         // Communication entre les processus
         int changed = exchange_overlap(domain, g_processus, changed_cells);
-
         // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
         memset(start, 0, ncell * sizeof(int));
         int continue_local = 0;
