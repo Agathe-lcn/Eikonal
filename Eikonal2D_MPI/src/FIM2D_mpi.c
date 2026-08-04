@@ -581,27 +581,26 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     int communication_count = 0;
     while(true){
 
-        // 1. DUMP AVANT CALCUL LOCAL (Début réel du cycle)
-        printf("[rank %d] cycle %d - before local propagation\n", domain->rank, cycle);
-        fflush(stdout);
-        dump_boundary_state(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
-        dump_active_cells(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
+        // TEST
+        //printf("[Processus %d] Cycle %d - avant local_propagate\n", domain->rank, cycle);
 
-        // 2. CALCUL LOCAL
+        // On fait la propagation sur 'overlap' cellules de distance
         int local_changed = local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
 
-        // 3. DUMP APRÈS CALCUL LOCAL / AVANT COMMUNICATION
+        // On initialise continue_local avant de l'utiliser dans write_cycle_summary
+        int continue_local = local_changed;
+
         printf("[rank %d] cycle %d - before communication (local_changed=%d)\n", domain->rank, cycle, local_changed);
         fflush(stdout);
-        write_cycle_summary(domain, cycle, communication_count, local_changed, 0, local_changed, 0);
+        write_cycle_summary(domain, cycle, communication_count, local_changed, 0, continue_local, 0);
         dump_boundary_state(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
         dump_active_cells(domain, g_processus, cycle, communication_count, start, frontier, changed_cells);
 
-        // 4. COMMUNICATION ENTRE LES PROCESSUS
+        // Communication entre les processus
         int changed = exchange_overlap(domain, g_processus, changed_cells, cycle, communication_count);
-        int continue_local = local_changed || changed;
 
-        // 5. DUMP APRÈS COMMUNICATION
+        memset(start, 0, ncell * sizeof(int));
+
         communication_count++;
         printf("[rank %d] cycle %d - after communication %d (changed=%d)\n", domain->rank, cycle, communication_count, changed);
         fflush(stdout);
@@ -612,7 +611,8 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         dump_partial_grid(domain, g_processus, cycle, communication_count);
 
         // Les mailles de départ du prochain cycle sont celles sur lesquelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
-        memset(start, 0, ncell * sizeof(int));
+        //memset(start, 0, ncell * sizeof(int));
+        continue_local = local_changed || changed;
         for (int k = 0; k < ncell; k++){
             if (frontier[k] || changed_cells[k]){
                 start[k] = 1;
