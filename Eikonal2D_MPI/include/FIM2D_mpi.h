@@ -20,6 +20,7 @@ typedef struct{
     int m;
     double h;
     int max_depth;
+    int optim_com_mpi;
 
     // Domaine sans recouvrement
     int i_owned_start;
@@ -47,6 +48,12 @@ typedef struct{
     unsigned long long halo_cells_updated;
     unsigned long long allreduce_calls;
     unsigned long long allreduce_payload_bytes;
+
+    // Cache du dernier halo envoye pour le mode OPTIM_COM_MPI.
+    double* last_sent_up_t;
+    double* last_sent_down_t;
+    int* last_sent_up_depth;
+    int* last_sent_down_depth;
 } MPIDomain;
 
 
@@ -57,6 +64,7 @@ typedef struct{
     double h;
     int overlap;
     int max_depth;
+    int optim_com_mpi;
 
     // Sources globales
     int nsources;

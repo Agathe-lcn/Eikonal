@@ -20,6 +20,128 @@ static void report_topology_error(int rank, const char* message){
     }
 }
 
+static int source_depth_is_better(int new_depth, int old_depth){
+    return new_depth >= 0 && (old_depth < 0 || new_depth < old_depth);
+}
+
+typedef struct {
+    int relative_index;
+    double value;
+    int depth;
+} OptimHaloCell;
+
+static int halo_value_is_send_worthy(double current_t, int current_depth, double cached_t, int cached_depth){
+    if (current_depth < 0)
+        return 0;
+    if (current_t >= EIKONAL_INF)
+        return 0;
+    if (cached_t >= EIKONAL_INF)
+        return 1;
+    if (current_t < cached_t - EIKONAL_EPS)
+        return 1;
+    if (fabs(current_t - cached_t) <= EIKONAL_EPS && source_depth_is_better(current_depth, cached_depth))
+        return 1;
+    return 0;
+}
+
+static int init_last_sent_cache(double** t_cache, int** depth_cache, int band_size){
+    *t_cache = (double*)malloc((size_t)band_size * sizeof(double));
+    *depth_cache = (int*)malloc((size_t)band_size * sizeof(int));
+    if (!*t_cache || !*depth_cache){
+        free(*t_cache);
+        free(*depth_cache);
+        *t_cache = NULL;
+        *depth_cache = NULL;
+        return 0;
+    }
+
+    for (int k = 0; k < band_size; k++){
+        (*t_cache)[k] = EIKONAL_INF;
+        (*depth_cache)[k] = -1;
+    }
+
+    return 1;
+}
+
+static void record_halo_sendrecv(MPIDomain* domain, unsigned long long send_bytes, unsigned long long recv_bytes){
+    domain->halo_sendrecv_calls++;
+    if (send_bytes > 0){
+        domain->halo_messages_sent++;
+        domain->halo_bytes_sent += send_bytes;
+    }
+    if (recv_bytes > 0){
+        domain->halo_messages_received++;
+        domain->halo_bytes_received += recv_bytes;
+    }
+}
+
+static int build_sparse_halo_payload(const MPIDomain* domain, const EikonalGrid* g_processus, const int* source_depth,
+    int local_row_start, int row_count, double* cached_t, int* cached_depth,
+    OptimHaloCell* out_cells){
+    int band_size = row_count * domain->m;
+    int send_count = 0;
+
+    for (int rel = 0; rel < band_size; rel++){
+        int local_index = local_row_start * domain->m + rel;
+        double current_t = g_processus->T[local_index];
+        int current_depth = source_depth[local_index];
+
+        if (!halo_value_is_send_worthy(current_t, current_depth, cached_t[rel], cached_depth[rel]))
+            continue;
+
+        out_cells[send_count].relative_index = rel;
+        out_cells[send_count].value = current_t;
+        out_cells[send_count].depth = current_depth;
+        cached_t[rel] = current_t;
+        cached_depth[rel] = current_depth;
+        send_count++;
+    }
+
+    return send_count;
+}
+
+static int apply_sparse_halo_payload(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth,
+    int base_offset, int row_count, const OptimHaloCell* cells, int recv_count){
+    int any_change = 0;
+    int band_size = row_count * domain->m;
+
+    for (int entry = 0; entry < recv_count; entry++){
+        int rel = cells[entry].relative_index;
+        int target;
+        double old_t;
+        double new_t;
+        int new_depth;
+        int depth_better;
+
+        if (rel < 0 || rel >= band_size)
+            continue;
+
+        target = base_offset + rel;
+        old_t = g_processus->T[target];
+        new_t = cells[entry].value;
+        new_depth = cells[entry].depth;
+        depth_better = source_depth_is_better(new_depth, source_depth[target]);
+
+        if (new_t < old_t - EIKONAL_EPS){
+            g_processus->T[target] = new_t;
+            source_depth[target] = new_depth;
+            changed_cells[target] = 1;
+            any_change = 1;
+            domain->halo_cells_updated++;
+            continue;
+        }
+
+        if (fabs(new_t - old_t) <= EIKONAL_EPS && depth_better){
+            source_depth[target] = new_depth;
+            changed_cells[target] = 1;
+            any_change = 1;
+            domain->halo_cells_updated++;
+        }
+    }
+
+    return any_change;
+}
+
 static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start, int* source_depth, int max_depth, int index){
     int i = index / domain->m;
     int j = index % domain->m;
@@ -205,6 +327,7 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->m = m;
     domain->h = h;
     domain->max_depth = -1;
+    domain->optim_com_mpi = 0;
     domain->i_owned_start = i_start;
     domain->i_owned_end = i_start + n_owned - 1;
     domain->n_owned = n_owned;
@@ -241,6 +364,34 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->halo_cells_updated = 0;
     domain->allreduce_calls = 0;
     domain->allreduce_payload_bytes = 0;
+    domain->last_sent_up_t = NULL;
+    domain->last_sent_down_t = NULL;
+    domain->last_sent_up_depth = NULL;
+    domain->last_sent_down_depth = NULL;
+
+    if (domain->up_rank != MPI_PROC_NULL && domain->top_ghost > 0){
+        if (!init_last_sent_cache(&domain->last_sent_up_t, &domain->last_sent_up_depth, overlap * m)){
+            if (rank == 0)
+                fprintf(stderr, "Erreur: impossible d'allouer le cache d'envoi halo vers le haut.\n");
+            MPI_Comm_free(&domain->comm);
+            MPI_Comm_free(&domain->exch_comm);
+            free(domain);
+            return NULL;
+        }
+    }
+
+    if (domain->down_rank != MPI_PROC_NULL && domain->bottom_ghost > 0){
+        if (!init_last_sent_cache(&domain->last_sent_down_t, &domain->last_sent_down_depth, overlap * m)){
+            if (rank == 0)
+                fprintf(stderr, "Erreur: impossible d'allouer le cache d'envoi halo vers le bas.\n");
+            free(domain->last_sent_up_t);
+            free(domain->last_sent_up_depth);
+            MPI_Comm_free(&domain->comm);
+            MPI_Comm_free(&domain->exch_comm);
+            free(domain);
+            return NULL;
+        }
+    }
 
     if (domain->i_start_overlap < 0 || domain->i_end_overlap >= n || domain->n_overlap < domain->n_owned){
         if (rank == 0){
@@ -270,13 +421,17 @@ void topology_free(MPIDomain* domain){
     if (!domain)
         return;
 
+    free(domain->last_sent_up_t);
+    free(domain->last_sent_down_t);
+    free(domain->last_sent_up_depth);
+    free(domain->last_sent_down_depth);
     MPI_Comm_free(&domain->comm);
     MPI_Comm_free(&domain->exch_comm);
     free(domain);
 }
 
 
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
+static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
     // Si on veut tester sans les communications, alors on ne fait rien
     #if TEST_MODE
         return 0;
@@ -415,6 +570,124 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     //fflush(stdout);
 
     return any_change;
+}
+
+static int exchange_overlap_optimized(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
+    int any_change = 0;
+    int m = domain->m;
+    int overlap = domain->overlap;
+    int band_size = overlap * m;
+
+    memset(changed_cells, 0, (size_t)domain->n_overlap * m * sizeof(int));
+    domain->halo_exchange_rounds++;
+
+    if (domain->up_rank != MPI_PROC_NULL && domain->top_ghost > 0){
+        int send_count = 0;
+        int recv_count = 0;
+        OptimHaloCell* send_cells = (OptimHaloCell*)malloc((size_t)band_size * sizeof(OptimHaloCell));
+
+        if (!send_cells){
+            free(send_cells);
+            printf("Erreur [rang %d]: allocation impossible pour l'echange halo optimise vers le haut.\n", domain->rank);
+            return 0;
+        }
+
+        send_count = build_sparse_halo_payload(domain, g_processus, source_depth,
+            domain->top_ghost, overlap,
+            domain->last_sent_up_t, domain->last_sent_up_depth,
+            send_cells);
+
+        MPI_Sendrecv(&send_count, 1, MPI_INT, domain->up_rank, TAG + 10,
+            &recv_count, 1, MPI_INT, domain->up_rank, TAG + 10,
+            domain->exch_comm, MPI_STATUS_IGNORE);
+        record_halo_sendrecv(domain, sizeof(int), sizeof(int));
+
+        if (send_count > 0 || recv_count > 0){
+            int recv_alloc = recv_count > 0 ? recv_count : 1;
+            OptimHaloCell* recv_cells = (OptimHaloCell*)malloc((size_t)recv_alloc * sizeof(OptimHaloCell));
+
+            if (!recv_cells){
+                free(send_cells);
+                free(recv_cells);
+                printf("Erreur [rang %d]: allocation impossible pour la reception halo optimisee depuis le haut.\n", domain->rank);
+                return 0;
+            }
+
+            MPI_Sendrecv(send_cells, send_count * (int)sizeof(OptimHaloCell), MPI_BYTE, domain->up_rank, TAG + 11,
+                recv_cells, recv_count * (int)sizeof(OptimHaloCell), MPI_BYTE, domain->up_rank, TAG + 11,
+                domain->exch_comm, MPI_STATUS_IGNORE);
+            record_halo_sendrecv(domain,
+                (unsigned long long)send_count * sizeof(OptimHaloCell),
+                (unsigned long long)recv_count * sizeof(OptimHaloCell));
+
+            any_change |= apply_sparse_halo_payload(domain, g_processus, changed_cells, source_depth,
+                0, overlap, recv_cells, recv_count);
+
+            free(recv_cells);
+        }
+
+        free(send_cells);
+    }
+
+    if (domain->down_rank != MPI_PROC_NULL && domain->bottom_ghost > 0){
+        int send_count = 0;
+        int recv_count = 0;
+        int send_offset = (domain->n_overlap - domain->bottom_ghost - overlap) * m;
+        int recv_base = (domain->n_overlap - overlap) * m;
+        int local_row_start = send_offset / m;
+        OptimHaloCell* send_cells = (OptimHaloCell*)malloc((size_t)band_size * sizeof(OptimHaloCell));
+
+        if (!send_cells){
+            free(send_cells);
+            printf("Erreur [rang %d]: allocation impossible pour l'echange halo optimise vers le bas.\n", domain->rank);
+            return any_change;
+        }
+
+        send_count = build_sparse_halo_payload(domain, g_processus, source_depth,
+            local_row_start, overlap,
+            domain->last_sent_down_t, domain->last_sent_down_depth,
+            send_cells);
+
+        MPI_Sendrecv(&send_count, 1, MPI_INT, domain->down_rank, TAG + 10,
+            &recv_count, 1, MPI_INT, domain->down_rank, TAG + 10,
+            domain->exch_comm, MPI_STATUS_IGNORE);
+        record_halo_sendrecv(domain, sizeof(int), sizeof(int));
+
+        if (send_count > 0 || recv_count > 0){
+            int recv_alloc = recv_count > 0 ? recv_count : 1;
+            OptimHaloCell* recv_cells = (OptimHaloCell*)malloc((size_t)recv_alloc * sizeof(OptimHaloCell));
+
+            if (!recv_cells){
+                free(send_cells);
+                free(recv_cells);
+                printf("Erreur [rang %d]: allocation impossible pour la reception halo optimisee depuis le bas.\n", domain->rank);
+                return any_change;
+            }
+
+            MPI_Sendrecv(send_cells, send_count * (int)sizeof(OptimHaloCell), MPI_BYTE, domain->down_rank, TAG + 11,
+                recv_cells, recv_count * (int)sizeof(OptimHaloCell), MPI_BYTE, domain->down_rank, TAG + 11,
+                domain->exch_comm, MPI_STATUS_IGNORE);
+            record_halo_sendrecv(domain,
+                (unsigned long long)send_count * sizeof(OptimHaloCell),
+                (unsigned long long)recv_count * sizeof(OptimHaloCell));
+
+            any_change |= apply_sparse_halo_payload(domain, g_processus, changed_cells, source_depth,
+                recv_base, overlap, recv_cells, recv_count);
+
+            free(recv_cells);
+        }
+
+        free(send_cells);
+    }
+
+    return any_change;
+}
+
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
+    if (domain->optim_com_mpi)
+        return exchange_overlap_optimized(domain, g_processus, changed_cells, source_depth);
+
+    return exchange_overlap_full(domain, g_processus, changed_cells, source_depth);
 }
 
 

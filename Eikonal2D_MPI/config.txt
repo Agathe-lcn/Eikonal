@@ -1,8 +1,11 @@
 n = 100
 m = 100
 h = 0.05
-overlap = 5
+overlap = 5    
 max_depth = 10 
+# max_depth = -1 pour desactiver ce critère d'arrêt
+OPTIM_COM_MPI = 1
+# 0 = désactivé, 1 = activé
 
 # une par ligne
 sources:
