@@ -479,8 +479,7 @@ int main(int argc, char** argv){
     if (!domain){
         free_config_mpi(&cfg_processus);
         FIMIO_Finalize();
-        MPI_Finalize();
-        return 1;
+        MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     // Création de la grille

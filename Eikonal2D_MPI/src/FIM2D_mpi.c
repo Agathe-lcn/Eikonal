@@ -13,6 +13,13 @@ static int is_owned_local_row(const MPIDomain* domain, int i_local){
     return i_local >= domain->top_ghost && i_local < domain->top_ghost + domain->n_owned;
 }
 
+static void report_topology_error(int rank, const char* message){
+    if (rank == 0){
+        fprintf(stderr, "%s\n", message);
+        fflush(stderr);
+    }
+}
+
 static void activate_owned_from_changed_cell(const MPIDomain* domain, int* start, int index){
     int i = index / domain->m;
     int j = index % domain->m;
@@ -43,20 +50,52 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPI_Comm_rank(MPI_COMM_WORLD, &(rank));
     MPI_Comm_size(MPI_COMM_WORLD, &(nproc));
 
-    int min_owned = n / nproc;
-    if (overlap < 1){
-        if (rank == 0)
-            printf("Erreur: overlap doit etre un entier >= 1.\n");
+    if (nproc < 1){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: nombre de processus MPI invalide (%d).\n", nproc);
+            fflush(stderr);
+        }
         return NULL;
     }
-    if (min_owned < 1){
-        if (rank == 0)
-            printf("Erreur: nombre de processus MPI trop grand pour n=%d, certains rangs auraient 0 ligne owned.\n", n);
+    if (n < 1){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: n=%d invalide, le nombre de lignes doit etre >= 1.\n", n);
+            fflush(stderr);
+        }
+        return NULL;
+    }
+    if (m < 1){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: m=%d invalide, le nombre de colonnes doit etre >= 1.\n", m);
+            fflush(stderr);
+        }
+        return NULL;
+    }
+    if (h <= 0.0){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: h=%g invalide, le pas de grille doit etre > 0.\n", h);
+            fflush(stderr);
+        }
+        return NULL;
+    }
+    if (nproc > n){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: nombre de processus MPI trop grand (%d) pour n=%d, certains rangs auraient 0 ligne owned.\n", nproc, n);
+            fflush(stderr);
+        }
+        return NULL;
+    }
+
+    int min_owned = n / nproc;
+    if (overlap < 1){
+        report_topology_error(rank, "Erreur: overlap doit etre un entier >= 1.");
         return NULL;
     }
     if (overlap > min_owned){
-        if (rank == 0)
-            printf("Erreur: overlap=%d invalide, il doit etre <= n_owned minimal=%d pour ce decoupage MPI.\n", overlap, min_owned);
+        if (rank == 0){
+            fprintf(stderr, "Erreur: overlap=%d invalide, il doit etre <= n_owned minimal=%d pour ce decoupage MPI.\n", overlap, min_owned);
+            fflush(stderr);
+        }
         return NULL;
     }
 
@@ -113,6 +152,23 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
         i_start = R * (Q+1) + (proc_coords - R) * Q;
     }
 
+    if (n_owned < 1){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: decoupage MPI invalide, le rang %d aurait %d ligne owned.\n", rank, n_owned);
+            fflush(stderr);
+        }
+        free(domain);
+        return NULL;
+    }
+    if (i_start < 0 || i_start + n_owned > n){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: decoupage MPI incoherent pour le rang %d (i_start=%d, n_owned=%d, n=%d).\n", rank, i_start, n_owned, n);
+            fflush(stderr);
+        }
+        free(domain);
+        return NULL;
+    }
+
     // Test
     //printf("[rank %d] Q=%d R=%d n_owned=%d i_start=%d\n", rank, Q, R, n_owned, i_start);
     //fflush(stdout);
@@ -152,6 +208,22 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->n_overlap = domain->i_end_overlap - domain->i_start_overlap + 1;
     domain->up_rank = up_rank;
     domain->down_rank = down_rank;
+
+    if (domain->i_start_overlap < 0 || domain->i_end_overlap >= n || domain->n_overlap < domain->n_owned){
+        if (rank == 0){
+            fprintf(stderr, "Erreur: recouvrement MPI incoherent (rank=%d, owned=[%d,%d], overlap=[%d,%d], n_overlap=%d, n=%d).\n",
+                rank,
+                domain->i_owned_start,
+                domain->i_owned_end,
+                domain->i_start_overlap,
+                domain->i_end_overlap,
+                domain->n_overlap,
+                n);
+            fflush(stderr);
+        }
+        free(domain);
+        return NULL;
+    }
 
     // Test
     //printf("[rank %d] top_ghost=%d bottom_ghost=%d i_owned=[%d,%d] i_overlap=[%d,%d] n_overlap=%d\n", rank, domain->top_ghost, domain->bottom_ghost, domain->i_owned_start, domain->i_owned_end, domain->i_start_overlap, domain->i_end_overlap, domain->n_overlap);
