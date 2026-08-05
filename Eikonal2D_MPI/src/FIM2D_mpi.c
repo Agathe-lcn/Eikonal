@@ -111,8 +111,8 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     // Vérification au cas où un sous-domaine est plus petit que le recouvrement
     if (domain->top_ghost > domain->i_owned_start)
         domain->top_ghost = domain->i_owned_start;
-    if (domain->bottom_ghost > n)
-        domain->bottom_ghost = n;
+    if (domain->bottom_ghost > n - 1 - domain->i_owned_end)
+        domain->bottom_ghost = n - 1 - domain->i_owned_end;
 
     domain->i_start_overlap = domain->i_owned_start - domain->top_ghost;
     domain->i_end_overlap = domain->i_owned_end + domain->bottom_ghost;
@@ -162,35 +162,43 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     double* recv_up = NULL;
     double* recv_down = NULL;
 
+    // Nombre de lignes possédées que le processus doit envoyer
+    int send_rows;
+    if (overlap < domain->n_owned)
+        send_rows = overlap;
+    else
+        send_rows = domain->n_owned;
 
     // Pour l'échange avec le voisin du dessus, on vérifie que le processus n'est pas tout en haut
     int do_up = domain->up_rank != MPI_PROC_NULL && domain->top_ghost > 0;
+    int up_rows = domain->top_ghost + send_rows;
     if (do_up){
-        send_up = (double*)malloc(overlap * m * sizeof(double));
-        recv_up = (double*)malloc(overlap * m * sizeof(double));
-        memcpy(send_up, g_processus->T + domain->top_ghost*m, overlap * m * sizeof(double));
+        send_up = (double*)malloc(up_rows * m * sizeof(double));
+        recv_up = (double*)malloc(up_rows * m * sizeof(double));
+        memcpy(send_up, g_processus->T, up_rows * m * sizeof(double));
 
         // TEST
         //printf("[rank %d] Sendrecv avec up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, overlap*m);
         //fflush(stdout);
 
-        MPI_Sendrecv(send_up, overlap*m, MPI_DOUBLE, domain->up_rank, TAG, recv_up, overlap*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(send_up, up_rows*m, MPI_DOUBLE, domain->up_rank, TAG, recv_up, up_rows*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
 
     // Pour l'échange avec le voisin du dessous, on vérifie que le processus n'est pas tout en bas
     int do_down = domain->down_rank != MPI_PROC_NULL && domain->bottom_ghost > 0;
+    int down_rows = send_rows + domain->bottom_ghost;
     if (do_down){
-        send_down = (double*)malloc(overlap * m * sizeof(double));
-        recv_down = (double*)malloc(overlap * m * sizeof(double));
-        int send_offset = (domain->n_overlap - domain->bottom_ghost - overlap) * m;
-        memcpy(send_down, g_processus->T + send_offset, overlap * m * sizeof(double));
+        send_down = (double*)malloc(down_rows * m * sizeof(double));
+        recv_down = (double*)malloc(down_rows * m * sizeof(double));
+        int send_offset = (domain->n_overlap - down_rows) * m;
+        memcpy(send_down, g_processus->T + send_offset, down_rows * m * sizeof(double));
 
         // TEST
         //printf("[rank %d] Sendrecv avec down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, overlap*m);
         //fflush(stdout);
 
-        MPI_Sendrecv(send_down, overlap*m, MPI_DOUBLE, domain->down_rank, TAG, recv_down, overlap*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(send_down, down_rows*m, MPI_DOUBLE, domain->down_rank, TAG, recv_down, down_rows*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
 
@@ -202,7 +210,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 
     // Comparaison des valeurs de T entre le processus courant et son voisin du haut pour garder le minimum à chaque cellule
     if (recv_up){
-        for (int k = 0; k < overlap*m; k++){
+        for (int k = 0; k < up_rows*m; k++){
             double old_T = g_processus->T[k];
             double new_T = recv_up[k];
             if (new_T < old_T - EIKONAL_EPS){
@@ -222,8 +230,8 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 
     // Comparaison des valeurs de T entre le processus courant et son voisin du bas pour garder le minimum à chaque cellule
     if (recv_down){
-        int beginning = (domain->n_overlap - overlap) * m;
-        for (int k = beginning; k < beginning + overlap*m; k++){
+        int beginning = (domain->n_overlap - down_rows) * m;
+        for (int k = beginning; k < beginning + down_rows*m; k++){
             double old_T = g_processus->T[k];
             double new_T = recv_down[k - beginning];
             if (new_T < old_T - EIKONAL_EPS){
