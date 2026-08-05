@@ -34,7 +34,7 @@ static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start,
 
     if (i < domain->top_ghost){
         int target = domain->top_ghost * domain->m + j;
-        int target_depth = source_cell_depth + 1;
+        int target_depth = source_cell_depth + (domain->top_ghost - i);
         if (source_cell_depth < 0)
             return 0;
         if (max_depth >= 0 && target_depth > max_depth)
@@ -48,7 +48,7 @@ static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start,
     if (i >= domain->top_ghost + domain->n_owned){
         int last_owned = domain->top_ghost + domain->n_owned - 1;
         int target = last_owned * domain->m + j;
-        int target_depth = source_cell_depth + 1;
+        int target_depth = source_cell_depth + (i - last_owned);
         if (source_cell_depth < 0)
             return 0;
         if (max_depth >= 0 && target_depth > max_depth)
