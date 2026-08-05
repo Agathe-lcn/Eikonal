@@ -5,6 +5,55 @@ import os
 import glob
 
 
+def read_config(config_file="config.txt"):
+    n = None
+    m = None
+    h = 1.0
+    sources_xy = []
+    section = None
+
+    if not os.path.exists(config_file):
+        return n, m, h, sources_xy
+
+    with open(config_file, "r") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line == "sources:":
+                section = "sources"
+                continue
+            if line == "walls:":
+                section = "walls"
+                continue
+
+            if section == "sources":
+                parts = line.split()
+                if len(parts) == 2:
+                    try:
+                        sources_xy.append((int(parts[0]), int(parts[1])))
+                    except ValueError:
+                        pass
+                continue
+
+            if "=" not in line:
+                continue
+
+            key, value = (part.strip() for part in line.split("=", 1))
+            if key == "n":
+                n = int(value)
+            elif key == "m":
+                m = int(value)
+            elif key == "h":
+                h = float(value)
+
+    return n, m, h, sources_xy
+
+
+def sources_physical_coordinates(sources_xy, h):
+    return [(x * h, y * h) for (x, y) in sources_xy]
+
+
 def visualize_checkpoint():
     # Recherche du fichier checkpoint
     checkpoint_files = glob.glob("*.chkpt")
@@ -28,51 +77,46 @@ def visualize_checkpoint():
     T_fim = data.reshape(n, m).copy()
     T_fim[T_fim >= 1e300] = np.nan  # masque les cellules jamais atteintes
 
-    # Chargement des coordonnées des sources
-    coord_file = "coords_source.txt"
-    sources = []
-    if os.path.exists(coord_file):
-        try:
-            coords = np.loadtxt(coord_file)
-            if coords.ndim == 1:
-                sources = [coords]
-            else:
-                sources = coords
-        except Exception as e:
-            print(f"Erreur: Impossible de charger les sources {e}")
-    else:
-        print(f"Erreur: Fichier {coord_file} pas trouvé")
+    n_cfg, m_cfg, h_cfg, sources_xy_indices = read_config("config.txt")
+    if n_cfg is not None:
+        n = n_cfg
+    if m_cfg is not None:
+        m = m_cfg
+    h = h_cfg
+    sources = sources_physical_coordinates(sources_xy_indices, h)
 
-    # Création de la grille
-    x = np.arange(m) * h
-    y = np.arange(n) * h
+    # Création de la grille avec x associe a la premiere coordonnee du fichier de config
+    x = np.arange(n) * h
+    y = np.arange(m) * h
     X, Y = np.meshgrid(x, y)
 
     # Visualisation
-    plt.figure(figsize=(10, 8))
-    plt.pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
-    plt.title("FIM MPI - carte de distance globale")
-    plt.xlabel("X")
-    plt.ylabel("Y")
+    fig, ax = plt.subplots(figsize=(10, 8))
+    mesh = ax.pcolormesh(X, Y, T_fim.T, shading='nearest', cmap='viridis')
+    ax.set_title("FIM MPI - carte de distance globale")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
 
     # Ajout des isocontours
     T_min = np.nanmin(T_fim)
     T_max = np.nanmax(T_fim)
     nb_contours = 15
     levels = np.linspace(T_min, T_max, nb_contours)
-    plt.contour(X, Y, T_fim, levels, colors='white', linewidths=0.8, alpha=0.7)
+    ax.contour(X, Y, T_fim.T, levels, colors='white', linewidths=0.8, alpha=0.7)
 
     # Sources
     for (xs, ys) in sources:
-        plt.scatter(xs, ys, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "", edgecolors='red', linewidth=1)
+        ax.scatter(xs, ys, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "", edgecolors='red', linewidth=1)
     if len(sources) > 1:
-        plt.scatter([], [], color='red', s=10, marker='.', label="Sources")
-    plt.legend()
-    plt.axis('equal')
-    plt.colorbar()
+        ax.scatter([], [], color='red', s=10, marker='.', label="Sources")
+    ax.legend()
+    ax.set_xlim(0.0, n * h)
+    ax.set_ylim(0.0, m * h)
+    ax.set_aspect('equal')
+    fig.colorbar(mesh, ax=ax)
 
     # Enregistrement
-    plt.savefig("visualization_fim_mpi.png", dpi=400, bbox_inches="tight")
+    fig.savefig("visualization_fim_mpi.png", dpi=400, bbox_inches="tight")
     print("Figure enregistrée: visualization_fim_mpi.png")
 
     plt.show()
