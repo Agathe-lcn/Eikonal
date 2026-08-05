@@ -13,6 +13,7 @@ typedef struct{
     int n;
     int m;
     double h;
+    int max_depth;
 
     int nsources;
     int* src_i;

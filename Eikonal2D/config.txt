@@ -1,6 +1,7 @@
 n = 100
 m = 100
 h = 0.05
+max_depth = 10 
 
 # une par ligne
 sources:

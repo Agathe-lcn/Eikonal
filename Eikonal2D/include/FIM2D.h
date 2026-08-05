@@ -63,8 +63,8 @@ int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, i
 // src_j est le tableau des indices j des sources
 // ns est le nombre de sources
 // Si max_radius est inférieur ou égal à 0, on parcourt l'intégralité de la grille; sinon, on applique le seuil
-
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius);
+// Si max_depth est >= 0, on limite la propagation à max_depth voisinages 4-connexes depuis les sources.
+void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius, int max_depth);
 
 
 #endif /* FIM_H */

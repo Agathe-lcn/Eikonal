@@ -20,24 +20,46 @@ static void report_topology_error(int rank, const char* message){
     }
 }
 
-static void activate_owned_from_changed_cell(const MPIDomain* domain, int* start, int index){
+static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start, int* source_depth, int max_depth, int index){
     int i = index / domain->m;
     int j = index % domain->m;
+    int source_cell_depth = source_depth[index];
 
     if (is_owned_local_row(domain, i)){
+        if (max_depth >= 0 && (source_cell_depth < 0 || source_cell_depth > max_depth))
+            return 0;
         start[index] = 1;
-        return;
+        return 1;
     }
 
     if (i < domain->top_ghost){
-        start[domain->top_ghost * domain->m + j] = 1;
-        return;
+        int target = domain->top_ghost * domain->m + j;
+        int target_depth = source_cell_depth + 1;
+        if (source_cell_depth < 0)
+            return 0;
+        if (max_depth >= 0 && target_depth > max_depth)
+            return 0;
+        if (source_depth[target] < 0 || source_depth[target] > target_depth)
+            source_depth[target] = target_depth;
+        start[target] = 1;
+        return 1;
     }
 
     if (i >= domain->top_ghost + domain->n_owned){
         int last_owned = domain->top_ghost + domain->n_owned - 1;
-        start[last_owned * domain->m + j] = 1;
+        int target = last_owned * domain->m + j;
+        int target_depth = source_cell_depth + 1;
+        if (source_cell_depth < 0)
+            return 0;
+        if (max_depth >= 0 && target_depth > max_depth)
+            return 0;
+        if (source_depth[target] < 0 || source_depth[target] > target_depth)
+            source_depth[target] = target_depth;
+        start[target] = 1;
+        return 1;
     }
+
+    return 0;
 }
 
 MPIDomain* topology_create(int n, int m, double h, int overlap){
@@ -182,6 +204,7 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->n = n;
     domain->m = m;
     domain->h = h;
+    domain->max_depth = -1;
     domain->i_owned_start = i_start;
     domain->i_owned_end = i_start + n_owned - 1;
     domain->n_owned = n_owned;
@@ -253,7 +276,7 @@ void topology_free(MPIDomain* domain){
 }
 
 
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells){
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
     // Si on veut tester sans les communications, alors on ne fait rien
     #if TEST_MODE
         return 0;
@@ -278,6 +301,10 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     double* send_down = NULL;
     double* recv_up = NULL;
     double* recv_down = NULL;
+    int* send_up_depth = NULL;
+    int* send_down_depth = NULL;
+    int* recv_up_depth = NULL;
+    int* recv_down_depth = NULL;
 
 
     // Pour l'échange avec le voisin du dessus, on vérifie que le processus n'est pas tout en haut
@@ -285,18 +312,22 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     if (do_up){
         send_up = (double*)malloc(overlap * m * sizeof(double));
         recv_up = (double*)malloc(overlap * m * sizeof(double));
+        send_up_depth = (int*)malloc(overlap * m * sizeof(int));
+        recv_up_depth = (int*)malloc(overlap * m * sizeof(int));
         memcpy(send_up, g_processus->T + domain->top_ghost*m, overlap * m * sizeof(double));
-        domain->halo_sendrecv_calls++;
-        domain->halo_messages_sent++;
-        domain->halo_messages_received++;
-        domain->halo_bytes_sent += (unsigned long long)(overlap * m * sizeof(double));
-        domain->halo_bytes_received += (unsigned long long)(overlap * m * sizeof(double));
+        memcpy(send_up_depth, source_depth + domain->top_ghost*m, overlap * m * sizeof(int));
+        domain->halo_sendrecv_calls += 2;
+        domain->halo_messages_sent += 2;
+        domain->halo_messages_received += 2;
+        domain->halo_bytes_sent += (unsigned long long)(overlap * m * (sizeof(double) + sizeof(int)));
+        domain->halo_bytes_received += (unsigned long long)(overlap * m * (sizeof(double) + sizeof(int)));
 
         // TEST
         //printf("[rank %d] Sendrecv avec up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, overlap*m);
         //fflush(stdout);
 
         MPI_Sendrecv(send_up, overlap*m, MPI_DOUBLE, domain->up_rank, TAG, recv_up, overlap*m, MPI_DOUBLE, domain->up_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(send_up_depth, overlap*m, MPI_INT, domain->up_rank, TAG + 1, recv_up_depth, overlap*m, MPI_INT, domain->up_rank, TAG + 1, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
 
@@ -305,19 +336,23 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     if (do_down){
         send_down = (double*)malloc(overlap * m * sizeof(double));
         recv_down = (double*)malloc(overlap * m * sizeof(double));
+        send_down_depth = (int*)malloc(overlap * m * sizeof(int));
+        recv_down_depth = (int*)malloc(overlap * m * sizeof(int));
         int send_offset = (domain->n_overlap - domain->bottom_ghost - overlap) * m;
         memcpy(send_down, g_processus->T + send_offset, overlap * m * sizeof(double));
-        domain->halo_sendrecv_calls++;
-        domain->halo_messages_sent++;
-        domain->halo_messages_received++;
-        domain->halo_bytes_sent += (unsigned long long)(overlap * m * sizeof(double));
-        domain->halo_bytes_received += (unsigned long long)(overlap * m * sizeof(double));
+        memcpy(send_down_depth, source_depth + send_offset, overlap * m * sizeof(int));
+        domain->halo_sendrecv_calls += 2;
+        domain->halo_messages_sent += 2;
+        domain->halo_messages_received += 2;
+        domain->halo_bytes_sent += (unsigned long long)(overlap * m * (sizeof(double) + sizeof(int)));
+        domain->halo_bytes_received += (unsigned long long)(overlap * m * (sizeof(double) + sizeof(int)));
 
         // TEST
         //printf("[rank %d] Sendrecv avec down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, overlap*m);
         //fflush(stdout);
 
         MPI_Sendrecv(send_down, overlap*m, MPI_DOUBLE, domain->down_rank, TAG, recv_down, overlap*m, MPI_DOUBLE, domain->down_rank, TAG, domain->exch_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(send_down_depth, overlap*m, MPI_INT, domain->down_rank, TAG + 1, recv_down_depth, overlap*m, MPI_INT, domain->down_rank, TAG + 1, domain->exch_comm, MPI_STATUS_IGNORE);
     }
 
 
@@ -334,6 +369,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
             double new_T = recv_up[k];
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
+                source_depth[k] = recv_up_depth[k];
                 any_change = 1;
                 changed_cells[k] = 1;
                 domain->halo_cells_updated++;
@@ -345,6 +381,8 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 
         free(send_up);
         free(recv_up);
+        free(send_up_depth);
+        free(recv_up_depth);
     }
 
 
@@ -356,6 +394,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
             double new_T = recv_down[k - beginning];
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
+                source_depth[k] = recv_down_depth[k - beginning];
                 any_change = 1;
                 changed_cells[k] = 1;
                 domain->halo_cells_updated++;
@@ -367,6 +406,8 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 
         free(send_down);
         free(recv_down);
+        free(send_down_depth);
+        free(recv_down_depth);
     }
 
     // Test
@@ -377,7 +418,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 }
 
 
-void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
+void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier, int* source_depth, int max_depth){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n*m;
@@ -433,11 +474,14 @@ void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* sta
         int i = index / m;
         int j = index % m;
         int is_owned = is_owned_local_row(domain, i);
+        int current_source_depth = source_depth[index];
 
         // TEST
         //printf("[Processus] Iteration %d: traitement de la cellule %d (%d,%d)\n", iterations, index, i, j);
 
         if (eikonal_grid_is_obstacle(g_processus, i, j))
+            continue;
+        if (max_depth >= 0 && (current_source_depth < 0 || current_source_depth > max_depth))
             continue;
 
         double T_old = g_processus->T[index];
@@ -456,6 +500,9 @@ void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* sta
             // On parcourt les voisins qui sont dans la zone de propagation voulue
             int current_depth = depth[index];
 
+            if (max_depth >= 0 && current_source_depth >= max_depth)
+                continue;
+
             // Si on a atteint la profondeur max de l'overlap, alors on ne propage plus aux voisins
             if (current_depth >= overlap){
                 frontier[index] = 1;
@@ -472,6 +519,10 @@ void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* sta
                     if (!is_owned_local_row(domain, ni))
                         continue;
 
+                    int next_source_depth = current_source_depth + 1;
+                    if (max_depth >= 0 && next_source_depth > max_depth)
+                        continue;
+
                     if (eikonal_grid_is_obstacle(g_processus, ni, nj))
                         continue;
 
@@ -480,6 +531,8 @@ void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* sta
                     
                     if (T_neighbor_new < g_processus->T[index_neighbor] - epsilon){
                         g_processus->T[index_neighbor] = T_neighbor_new;
+                        if (source_depth[index_neighbor] < 0 || source_depth[index_neighbor] > next_source_depth)
+                            source_depth[index_neighbor] = next_source_depth;
 
                         // TEST
                         //printf("[Processus] Voisin (%d,%d) mis à jour: %f\n", ni, nj, T_neighbor_new);
@@ -515,6 +568,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n * m;
+    int max_depth = cfg_processus->max_depth;
 
     // TEST
     /*printf("========== DEBUT fim_solve_mpi ==========\n");
@@ -528,6 +582,22 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     int* frontier = (int*)malloc(ncell * sizeof(int));
     int* depth = (int*)malloc(ncell * sizeof(int));
     int* changed_cells = (int*)calloc(domain->n_overlap * domain->m, sizeof(int));
+    int* source_depth = (int*)malloc(ncell * sizeof(int));
+
+    if (!frontier || !depth || !changed_cells || !source_depth){
+        printf("Erreur [rang %d]: impossible d'allouer les tableaux de travail MPI.\n", domain->rank);
+        free(frontier);
+        free(depth);
+        free(changed_cells);
+        free(source_depth);
+        return;
+    }
+
+    for (int k = 0; k < ncell; k++){
+        source_depth[k] = -1;
+        if (start[k] && g_processus->T[k] == 0.0)
+            source_depth[k] = 0;
+    }
 
     int cycle = 0;
     while(true){
@@ -536,10 +606,10 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         //printf("[Processus %d] Cycle %d - avant local_propagate\n", domain->rank, cycle);
 
         // On fait la propagation sur 'overlap' cellules de distance
-        local_propagate(domain, g_processus, start, domain->overlap, epsilon, depth, frontier);
+        local_propagate(domain, g_processus, start, domain->overlap, epsilon, depth, frontier, source_depth, max_depth);
 
         // Communication entre les processus
-        int changed = exchange_overlap(domain, g_processus, changed_cells);
+        int changed = exchange_overlap(domain, g_processus, changed_cells, source_depth);
         // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
         memset(start, 0, ncell * sizeof(int));
         int continue_local = 0;
@@ -552,9 +622,10 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
                 frontier_count++;
             }
             if (changed_cells[k]){
-                activate_owned_from_changed_cell(domain, start, k);
-                continue_local = 1;
-                changed_count++;
+                if (activate_owned_from_changed_cell(domain, start, source_depth, max_depth, k)){
+                    continue_local = 1;
+                    changed_count++;
+                }
             }
         }
 
@@ -611,4 +682,5 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     free(frontier);
     free(depth);
     free(changed_cells);
+    free(source_depth);
 }

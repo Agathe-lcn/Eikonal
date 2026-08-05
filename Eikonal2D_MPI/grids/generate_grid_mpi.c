@@ -53,6 +53,7 @@ static int parse_named_int_exact(const char* line, const char* key, int* out_val
 // Lecture du fichier de configuration
 Config2 read_config_mpi(const char* filename){
     Config2 cfg = {};
+    cfg.max_depth = -1;
     FILE* file = fopen(filename, "r");
     if (!file){
         printf("Erreur: Impossible d'ouvrir %s\n", filename);
@@ -102,6 +103,14 @@ Config2 read_config_mpi(const char* filename){
             continue;
         if (parsed < 0){
             printf("Erreur: overlap doit etre un entier strictement formate dans %s.\n", filename);
+            cfg.valid = false;
+            break;
+        }
+        parsed = parse_named_int_exact(line, "max_depth", &cfg.max_depth);
+        if (parsed == 1)
+            continue;
+        if (parsed < 0){
+            printf("Erreur: max_depth doit etre un entier strictement formate dans %s.\n", filename);
             cfg.valid = false;
             break;
         }
@@ -318,6 +327,7 @@ void save_local_result_mpi(const MPIDomain* domain, const EikonalGrid* g_process
     fprintf(meta_file, "m_global=%d\n", domain->m);
     fprintf(meta_file, "h=%0.17g\n", domain->h);
     fprintf(meta_file, "overlap=%d\n", domain->overlap);
+    fprintf(meta_file, "max_depth=%d\n", domain->max_depth);
     fprintf(meta_file, "n_local=%d\n", domain->n_overlap);
     fprintf(meta_file, "top_ghost=%d\n", domain->top_ghost);
     fprintf(meta_file, "bottom_ghost=%d\n", domain->bottom_ghost);
@@ -383,6 +393,7 @@ void save_mpi_communication_report(const MPIDomain* domain){
         fprintf(report, "grid_m=%d\n", domain->m);
         fprintf(report, "nproc=%d\n", domain->nproc);
         fprintf(report, "overlap=%d\n", domain->overlap);
+        fprintf(report, "max_depth=%d\n", domain->max_depth);
         fprintf(report, "note=Ce rapport couvre les communications du solveur (Sendrecv d'overlap et Allreduce de convergence). Les broadcasts d'initialisation et les ecritures MPI-IO ne sont pas comptabilises.\n");
         fprintf(report, "note_allreduce=Le volume Allreduce est exprime en charge utile applicative par rang; le trafic reseau reel depend de l'implementation MPI.\n\n");
 
@@ -553,6 +564,12 @@ int main(int argc, char** argv){
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
+        if (cfg_processus.max_depth < -1){
+            printf("Erreur: configuration invalide (max_depth doit etre >= 0, ou -1 pour desactiver la limitation)\n");
+            free_config_mpi(&cfg_processus);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
         overlap = cfg_processus.overlap;
     }
 
@@ -561,6 +578,7 @@ int main(int argc, char** argv){
     MPI_Bcast(&cfg_processus.n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cfg_processus.m, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cfg_processus.h, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&cfg_processus.max_depth, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cfg_processus.nsources, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cfg_processus.nwalls, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -592,6 +610,7 @@ int main(int argc, char** argv){
         FIMIO_Finalize();
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+    domain->max_depth = cfg_processus.max_depth;
 
     // Création de la grille
     EikonalGrid* g_processus = eikonal_grid_create(domain->n_overlap, domain->m, domain->h);

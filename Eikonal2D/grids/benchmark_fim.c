@@ -91,7 +91,7 @@ double run_fim(const char* config_file, double max_radius){
     save_speed(g, "speed.txt");
 
     clock_t start = clock();
-    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, max_radius);
+    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, max_radius, -1);
     clock_t end = clock();
 
     double cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;

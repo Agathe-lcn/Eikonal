@@ -8,6 +8,42 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+static int parse_named_int_exact(const char* line, const char* key, int* out_value){
+    size_t key_len = strlen(key);
+    const char* cursor = line;
+    char* end_ptr = NULL;
+    long value;
+
+    while (*cursor == ' ' || *cursor == '\t')
+        cursor++;
+
+    if (strncmp(cursor, key, key_len) != 0)
+        return 0;
+    cursor += key_len;
+
+    while (*cursor == ' ' || *cursor == '\t')
+        cursor++;
+    if (*cursor != '=')
+        return -1;
+    cursor++;
+
+    while (*cursor == ' ' || *cursor == '\t')
+        cursor++;
+    if (*cursor == '\0')
+        return -1;
+
+    value = strtol(cursor, &end_ptr, 10);
+    if (end_ptr == cursor)
+        return -1;
+    while (*end_ptr == ' ' || *end_ptr == '\t')
+        end_ptr++;
+    if (*end_ptr != '\0')
+        return -1;
+
+    *out_value = (int)value;
+    return 1;
+}
+
 
 // Vérifie si une chaîne est un entier
 bool is_integer(const char* str){
@@ -103,6 +139,12 @@ bool validate_config(Config* cfg, const char* n_str, const char* m_str, const ch
         return false;
     }
 
+    // max_depth doit être >= 0 quand il est activé, sinon -1 pour désactiver
+    if (cfg->max_depth < -1){
+        printf("Erreur: max_depth doit être un entier >= 0, ou -1 pour désactiver la limitation.\n");
+        return false;
+    }
+
 
 
 
@@ -162,6 +204,7 @@ bool validate_config(Config* cfg, const char* n_str, const char* m_str, const ch
 // Lecture du fichier de configuration
 Config read_config(const char* filename){
     Config cfg = {};
+    cfg.max_depth = -1;
     FILE* file = fopen(filename, "r");
     if (!file){
         printf("Erreur: Impossible d'ouvrir %s\n", filename);
@@ -215,6 +258,17 @@ Config read_config(const char* filename){
 
         // Lecture des paramètres n,m et h avec stockage des chaînes
         char tempo[MAX_LINE];
+
+        int parsed = parse_named_int_exact(line, "max_depth", &cfg.max_depth);
+        if (parsed == 1)
+            continue;
+        if (parsed < 0){
+            printf("Erreur: max_depth doit etre un entier strictement formate dans %s.\n", filename);
+            free_config(&cfg);
+            fclose(file);
+            cfg.valid = false;
+            return cfg;
+        }
 
         // Lecture de n
         if (sscanf(line, "n = %s", tempo) == 1){

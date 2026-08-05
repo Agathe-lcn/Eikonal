@@ -181,22 +181,28 @@ int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, i
 }
 /*
 
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius) {
+void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius, int max_depth) {
     if (!g || !src_i || !src_j || ns <= 0)
         return;
 
     int n = g->n;
     int m = g->m;
     int ncell = n * m;
+    int use_depth_limit = (max_depth >= 0);
 
     // Alloue et initialise le tag
     int* source_tag = (int*)malloc(ncell * sizeof(int));
-    if (!source_tag){
+    int* cell_depth = (int*)malloc(ncell * sizeof(int));
+    if (!source_tag || !cell_depth){
         printf("Erreur: Impossible d'allouer de la mémoire pour les tags\n");
+        free(source_tag);
+        free(cell_depth);
         return;
     }
-    for (int k = 0; k < ncell; k++)
+    for (int k = 0; k < ncell; k++){
         source_tag[k] = -1;
+        cell_depth[k] = -1;
+    }
 
     // Initialisation: définit toutes les mailles à +inf
     for (int k=0; k < ncell; k++)
@@ -353,22 +359,28 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 }*/
 
 
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius) {
+void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius, int max_depth) {
     if (!g || !src_i || !src_j || ns <= 0)
         return;
 
     int n = g->n;
     int m = g->m;
     int ncell = n * m;
+    int use_depth_limit = (max_depth >= 0);
 
     // Alloue et initialise le tag
     int* source_tag = (int*)malloc(ncell * sizeof(int));
-    if (!source_tag){
+    int* cell_depth = (int*)malloc(ncell * sizeof(int));
+    if (!source_tag || !cell_depth){
         printf("Erreur: Impossible d'allouer de la mémoire pour les tags\n");
+        free(source_tag);
+        free(cell_depth);
         return;
     }
-    for (int k = 0; k < ncell; k++)
+    for (int k = 0; k < ncell; k++){
         source_tag[k] = -1;
+        cell_depth[k] = -1;
+    }
 
     // Initialisation: définit toutes les mailles à +inf
     for (int k=0; k < ncell; k++)
@@ -378,6 +390,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     NodeList* narrow = list_create(ncell);
     if (!narrow) {
         free(source_tag);
+        free(cell_depth);
         return;
     }
 
@@ -390,6 +403,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         int index = i * m + j;
         g->T[index] = 0.0;
         source_tag[index] = s;
+        cell_depth[index] = 0;
 
         int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
         for (int k=0; k<4; k++){
@@ -398,10 +412,18 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
             if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                 int index = ni * m + nj;
+                int neighbor_depth = 1;
 
                 // Vérifie si le voisin se trouve à l'intérieur du cercle de rayon max_seuil et de centre s
                 if (!is_in_radius(src_i, src_j, ns, ni, nj, s, max_radius))
                     continue;
+                if (use_depth_limit && neighbor_depth > max_depth)
+                    continue;
+
+                if (cell_depth[index] < 0 || cell_depth[index] > neighbor_depth)
+                    cell_depth[index] = neighbor_depth;
+                if (source_tag[index] < 0)
+                    source_tag[index] = s;
 
                 if (!list_contains(narrow, index)){
                     list_push_back(narrow, index);
@@ -428,8 +450,11 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         int i = index / m;
         int j = index % m;
 
+        if (use_depth_limit && (cell_depth[index] < 0 || cell_depth[index] > max_depth))
+            continue;
+
         // Vérifie le rayon
-        if (!compute_all && !is_in_radius(src_i, src_j, ns, i, j, source_tag[index], max_radius))
+        if (!compute_all && (source_tag[index] < 0 || !is_in_radius(src_i, src_j, ns, i, j, source_tag[index], max_radius)))
             continue; 
 
         // Incrémente le compteur
@@ -444,6 +469,10 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
 
         if (diff <= epsilon) {
+            int current_cell_depth = cell_depth[index];
+            if (use_depth_limit && current_cell_depth >= max_depth)
+                continue;
+
             // La maille a convergé: on la fige et ses voisins susceptibles d'être améliorés sont ajoutés à la liste
             int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
             for (int k=0; k < 4; k++){
@@ -451,9 +480,12 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 int nj = neighbors[k][1];
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
                     int index_neighbor = ni * m + nj;
+                    int neighbor_depth = current_cell_depth + 1;
 
                     // Vérifie le rayon
                     if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
+                        continue;
+                    if (use_depth_limit && neighbor_depth > max_depth)
                         continue;
 
                     // Vérifie si le voisin peut être amélioré
@@ -461,6 +493,10 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                     if (T_neighbor_new < g->T[index_neighbor]){
                         g->T[index_neighbor] = T_neighbor_new;
                         source_tag[index_neighbor] = find_tag(g, source_tag, ni, nj, n, m);
+                        if (source_tag[index_neighbor] < 0)
+                            source_tag[index_neighbor] = source_tag[index];
+                        if (cell_depth[index_neighbor] < 0 || cell_depth[index_neighbor] > neighbor_depth)
+                            cell_depth[index_neighbor] = neighbor_depth;
                         if (!list_contains(narrow, index_neighbor))
                             list_push_back(narrow, index_neighbor);
                     }
@@ -481,4 +517,5 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
     // Nettoyage
     list_free(narrow);
     free(source_tag);
+    free(cell_depth);
 }
