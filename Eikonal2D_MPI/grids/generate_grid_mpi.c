@@ -6,10 +6,49 @@
 #include <string.h>
 #include <math.h>
 #include <mpi.h>
+#include <limits.h>
 
 #define EPSILON 1e-12
 #define MAX_LINE 1024
 #define TEST_MODE 0     // 1 pour désactiver les communications et 0 pour les activer
+
+static int parse_named_int_exact(const char* line, const char* key, int* out_value){
+    size_t key_len = strlen(key);
+    const char* cursor = line;
+    char* end_ptr = NULL;
+    long value;
+
+    while (*cursor == ' ' || *cursor == '\t')
+        cursor++;
+
+    if (strncmp(cursor, key, key_len) != 0)
+        return 0;
+    cursor += key_len;
+
+    while (*cursor == ' ' || *cursor == '\t')
+        cursor++;
+    if (*cursor != '=')
+        return -1;
+    cursor++;
+
+    while (*cursor == ' ' || *cursor == '\t')
+        cursor++;
+    if (*cursor == '\0')
+        return -1;
+
+    value = strtol(cursor, &end_ptr, 10);
+    if (end_ptr == cursor)
+        return -1;
+    while (*end_ptr == ' ' || *end_ptr == '\t')
+        end_ptr++;
+    if (*end_ptr != '\0')
+        return -1;
+    if (value < INT_MIN || value > INT_MAX)
+        return -1;
+
+    *out_value = (int)value;
+    return 1;
+}
 
 // Lecture du fichier de configuration
 Config2 read_config_mpi(const char* filename){
@@ -36,6 +75,7 @@ Config2 read_config_mpi(const char* filename){
     cfg.wall_r2 = (int*)malloc(max_walls * sizeof(int));
 
     cfg.nsources_overlap = 0;
+    cfg.valid = true;
 
     while (fgets(line, MAX_LINE, file)){
         // On ignore les commentaires et les lignes vides
@@ -57,6 +97,14 @@ Config2 read_config_mpi(const char* filename){
         }
 
         // Lecture des paramètres de la grille
+        int parsed = parse_named_int_exact(line, "overlap", &cfg.overlap);
+        if (parsed == 1)
+            continue;
+        if (parsed < 0){
+            printf("Erreur: overlap doit etre un entier strictement formate dans %s.\n", filename);
+            cfg.valid = false;
+            break;
+        }
         if (sscanf(line, "n = %d", &cfg.n) == 1)
             continue;
         if (sscanf(line, "m = %d", &cfg.m) == 1)
@@ -237,6 +285,51 @@ void save_sources_mpi(Config2 cfg, int rank){
 }
 
 
+void save_local_result_mpi(const MPIDomain* domain, const EikonalGrid* g_processus){
+    char matrix_filename[256];
+    char meta_filename[256];
+    snprintf(matrix_filename, sizeof(matrix_filename), "result_rank%d.txt", domain->rank);
+    snprintf(meta_filename, sizeof(meta_filename), "result_rank%d_meta.txt", domain->rank);
+
+    FILE* matrix_file = fopen(matrix_filename, "w");
+    if (!matrix_file){
+        printf("[Processus %d] Erreur: impossible de créer %s\n", domain->rank, matrix_filename);
+        return;
+    }
+
+    for (int i = 0; i < g_processus->n; i++){
+        for (int j = 0; j < g_processus->m; j++){
+            fprintf(matrix_file, "%.17g", g_processus->T[i * g_processus->m + j]);
+            if (j + 1 < g_processus->m)
+                fputc(' ', matrix_file);
+        }
+        fputc('\n', matrix_file);
+    }
+    fclose(matrix_file);
+
+    FILE* meta_file = fopen(meta_filename, "w");
+    if (!meta_file){
+        printf("[Processus %d] Erreur: impossible de créer %s\n", domain->rank, meta_filename);
+        return;
+    }
+
+    fprintf(meta_file, "rank=%d\n", domain->rank);
+    fprintf(meta_file, "n_global=%d\n", domain->n);
+    fprintf(meta_file, "m_global=%d\n", domain->m);
+    fprintf(meta_file, "h=%0.17g\n", domain->h);
+    fprintf(meta_file, "overlap=%d\n", domain->overlap);
+    fprintf(meta_file, "n_local=%d\n", domain->n_overlap);
+    fprintf(meta_file, "top_ghost=%d\n", domain->top_ghost);
+    fprintf(meta_file, "bottom_ghost=%d\n", domain->bottom_ghost);
+    fprintf(meta_file, "i_start_overlap=%d\n", domain->i_start_overlap);
+    fprintf(meta_file, "i_end_overlap=%d\n", domain->i_end_overlap);
+    fprintf(meta_file, "i_owned_start=%d\n", domain->i_owned_start);
+    fprintf(meta_file, "i_owned_end=%d\n", domain->i_owned_end);
+    fprintf(meta_file, "n_owned=%d\n", domain->n_owned);
+    fclose(meta_file);
+}
+
+
 void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, int* start){
     int n = g_processus->n;
     int m = g_processus->m;
@@ -303,43 +396,53 @@ int main(int argc, char** argv){
     FIMIO_Init(MPI_COMM_WORLD);
 
     Config2 cfg_processus;
-    int overlap;
+    int overlap = 0;
 
     if (rank == 0){
 
         // Nom du fichier de configuration
         const char* config_file = "config.txt";
-        if (argc > 2){
-            overlap = atoi(argv[1]);
-            config_file = argv[2];
+        if (argc == 2){
+            config_file = argv[1];
         }
-        else if (argc == 2 && sscanf(argv[1], "%d", &overlap) == 1){
-        }
-        else{
-            printf("Erreur: arguments invalides\n");
-            return 1;
+        else if (argc > 2){
+            printf("Erreur: arguments invalides. Usage: generate_grid_mpi [config.txt]\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
         // Lecture de la configuration
         cfg_processus = read_config_mpi(config_file);
 
+        if (!cfg_processus.valid){
+            free_config_mpi(&cfg_processus);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
         if (cfg_processus.n == 0 || cfg_processus.m == 0){
             printf("Erreur: configuration invalide (n ou m pas défini)\n");
             free_config_mpi(&cfg_processus);
-            return 1;
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
         if (cfg_processus.h <= 0){
             printf("Erreur: configuration invalide (h pas défini)\n");
             free_config_mpi(&cfg_processus);
-            return 1;
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
         if (cfg_processus.nsources == 0){
             printf("Erreur: aucune source spécifiée\n");
             free_config_mpi(&cfg_processus);
-            return 1;
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
+
+        if (cfg_processus.overlap < 1){
+            printf("Erreur: configuration invalide (overlap doit etre un entier >= 1)\n");
+            free_config_mpi(&cfg_processus);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        overlap = cfg_processus.overlap;
     }
 
     // Distribution de overlap et de certains champs de cfg_processus à tous les processus
@@ -373,6 +476,12 @@ int main(int argc, char** argv){
 
     // Définition de la topologie
     MPIDomain* domain = topology_create(cfg_processus.n, cfg_processus.m, cfg_processus.h, overlap);
+    if (!domain){
+        free_config_mpi(&cfg_processus);
+        FIMIO_Finalize();
+        MPI_Finalize();
+        return 1;
+    }
 
     // Création de la grille
     EikonalGrid* g_processus = eikonal_grid_create(domain->n_overlap, domain->m, domain->h);
@@ -413,6 +522,9 @@ int main(int argc, char** argv){
 
     // Exécution de la FIM
     fim_solve_mpi(domain, g_processus, &cfg_processus, start, EPSILON, -1);
+
+    // Sauvegarde du résultat local de chaque rang pour la visualisation par sous-domaine.
+    save_local_result_mpi(domain, g_processus);
 
     // Dans le cas où on veut tester dans les communications, chaque processus sauvegarde ses résultats dans un fichier différent
     #if TEST_MODE

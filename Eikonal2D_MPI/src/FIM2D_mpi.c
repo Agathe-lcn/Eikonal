@@ -34,16 +34,6 @@ static void activate_owned_from_changed_cell(const MPIDomain* domain, int* start
 }
 
 MPIDomain* topology_create(int n, int m, double h, int overlap){
-    MPIDomain* domain = (MPIDomain*)malloc(sizeof(MPIDomain));
-    if (!domain)
-        return NULL;
-
-    // Overlap entre 1 et 3
-    if (overlap < 1)
-        overlap = 1;
-    if (overlap > 3)
-        overlap = 3;
-    
     // Topologie cartésienne 1D (sous forme de bandes)
     int ndims=1;
     int nproc_per_dim[1] = {0};
@@ -52,6 +42,27 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
 
     MPI_Comm_rank(MPI_COMM_WORLD, &(rank));
     MPI_Comm_size(MPI_COMM_WORLD, &(nproc));
+
+    int min_owned = n / nproc;
+    if (overlap < 1){
+        if (rank == 0)
+            printf("Erreur: overlap doit etre un entier >= 1.\n");
+        return NULL;
+    }
+    if (min_owned < 1){
+        if (rank == 0)
+            printf("Erreur: nombre de processus MPI trop grand pour n=%d, certains rangs auraient 0 ligne owned.\n", n);
+        return NULL;
+    }
+    if (overlap > min_owned){
+        if (rank == 0)
+            printf("Erreur: overlap=%d invalide, il doit etre <= n_owned minimal=%d pour ce decoupage MPI.\n", overlap, min_owned);
+        return NULL;
+    }
+
+    MPIDomain* domain = (MPIDomain*)malloc(sizeof(MPIDomain));
+    if (!domain)
+        return NULL;
 
     // Test
     //printf("[rank %d]: n = %d, m = %d, h = %f, overlap = %d, nproc = %d \n", rank, n, m, h, overlap, nproc);
@@ -88,7 +99,7 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     //fflush(stdout);
 
     // Distribution équilibrée des lignes entre les processus
-    int Q = n / nproc;
+    int Q = min_owned;
     int R = n % nproc;
     int i_start;
     int n_owned;

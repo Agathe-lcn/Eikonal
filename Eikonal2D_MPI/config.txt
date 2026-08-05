@@ -1,10 +1,16 @@
-n = 40
-m = 40
+n = 100
+m = 100
 h = 0.05
+overlap = 2
 
 # une par ligne
 sources:
 15 20
+80 30
+30 80
+50 50
+48 5
+5 48
 
 # un par ligne (colonne_de_départ colonne_de_fin ligne_de_départ ligne_de_fin)
 walls:

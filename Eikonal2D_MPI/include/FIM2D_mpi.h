@@ -42,6 +42,7 @@ typedef struct{
     int n;
     int m;
     double h;
+    int overlap;
 
     // Sources globales
     int nsources;
