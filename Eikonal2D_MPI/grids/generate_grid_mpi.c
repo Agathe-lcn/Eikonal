@@ -330,6 +330,117 @@ void save_local_result_mpi(const MPIDomain* domain, const EikonalGrid* g_process
 }
 
 
+void save_mpi_communication_report(const MPIDomain* domain){
+    enum { MPI_STATS_COUNT = 10 };
+    unsigned long long local_stats[MPI_STATS_COUNT] = {
+        domain->solver_cycles,
+        domain->halo_exchange_rounds,
+        domain->halo_sendrecv_calls,
+        domain->halo_messages_sent,
+        domain->halo_messages_received,
+        domain->halo_bytes_sent,
+        domain->halo_bytes_received,
+        domain->halo_cells_updated,
+        domain->allreduce_calls,
+        domain->allreduce_payload_bytes
+    };
+    unsigned long long* gathered_stats = NULL;
+
+    if (domain->rank == 0){
+        gathered_stats = (unsigned long long*)malloc((size_t)domain->nproc * MPI_STATS_COUNT * sizeof(unsigned long long));
+        if (!gathered_stats){
+            printf("[Processus %d] Erreur: impossible d'allouer le rapport MPI\n", domain->rank);
+            return;
+        }
+    }
+
+    MPI_Gather(local_stats, MPI_STATS_COUNT, MPI_UNSIGNED_LONG_LONG,
+        gathered_stats, MPI_STATS_COUNT, MPI_UNSIGNED_LONG_LONG,
+        0, domain->comm);
+
+    if (domain->rank == 0){
+        FILE* report = fopen("mpi_communication_report.txt", "w");
+        if (!report){
+            printf("[Processus %d] Erreur: impossible de créer mpi_communication_report.txt\n", domain->rank);
+            free(gathered_stats);
+            return;
+        }
+
+        unsigned long long total_cycles = 0;
+        unsigned long long max_cycles = 0;
+        unsigned long long total_exchange_rounds = 0;
+        unsigned long long total_sendrecv_calls = 0;
+        unsigned long long total_messages_sent = 0;
+        unsigned long long total_messages_received = 0;
+        unsigned long long total_bytes_sent = 0;
+        unsigned long long total_bytes_received = 0;
+        unsigned long long total_cells_updated = 0;
+        unsigned long long total_allreduce_calls = 0;
+        unsigned long long total_allreduce_payload_bytes = 0;
+
+        fprintf(report, "MPI communication report\n");
+        fprintf(report, "grid_n=%d\n", domain->n);
+        fprintf(report, "grid_m=%d\n", domain->m);
+        fprintf(report, "nproc=%d\n", domain->nproc);
+        fprintf(report, "overlap=%d\n", domain->overlap);
+        fprintf(report, "note=Ce rapport couvre les communications du solveur (Sendrecv d'overlap et Allreduce de convergence). Les broadcasts d'initialisation et les ecritures MPI-IO ne sont pas comptabilises.\n");
+        fprintf(report, "note_allreduce=Le volume Allreduce est exprime en charge utile applicative par rang; le trafic reseau reel depend de l'implementation MPI.\n\n");
+
+        for (int rank = 0; rank < domain->nproc; rank++){
+            const unsigned long long* stats = gathered_stats + ((size_t)rank * MPI_STATS_COUNT);
+            total_cycles += stats[0];
+            if (stats[0] > max_cycles)
+                max_cycles = stats[0];
+            total_exchange_rounds += stats[1];
+            total_sendrecv_calls += stats[2];
+            total_messages_sent += stats[3];
+            total_messages_received += stats[4];
+            total_bytes_sent += stats[5];
+            total_bytes_received += stats[6];
+            total_cells_updated += stats[7];
+            total_allreduce_calls += stats[8];
+            total_allreduce_payload_bytes += stats[9];
+        }
+
+        fprintf(report, "global_solver_cycles_sum=%llu\n", total_cycles);
+        fprintf(report, "global_solver_cycles_max=%llu\n", max_cycles);
+        fprintf(report, "global_halo_exchange_rounds=%llu\n", total_exchange_rounds);
+        fprintf(report, "global_halo_sendrecv_calls=%llu\n", total_sendrecv_calls);
+        fprintf(report, "global_halo_messages_sent=%llu\n", total_messages_sent);
+        fprintf(report, "global_halo_messages_received=%llu\n", total_messages_received);
+        fprintf(report, "global_halo_bytes_sent=%llu\n", total_bytes_sent);
+        fprintf(report, "global_halo_bytes_received=%llu\n", total_bytes_received);
+        fprintf(report, "global_halo_payload_bytes_total=%llu\n", total_bytes_sent + total_bytes_received);
+        fprintf(report, "global_halo_cells_updated=%llu\n", total_cells_updated);
+        fprintf(report, "global_allreduce_calls=%llu\n", total_allreduce_calls);
+        fprintf(report, "global_allreduce_payload_bytes=%llu\n", total_allreduce_payload_bytes);
+        fprintf(report, "global_total_payload_bytes=%llu\n\n",
+            total_bytes_sent + total_bytes_received + total_allreduce_payload_bytes);
+
+        fprintf(report, "per_rank_details\n");
+        for (int rank = 0; rank < domain->nproc; rank++){
+            const unsigned long long* stats = gathered_stats + ((size_t)rank * MPI_STATS_COUNT);
+            fprintf(report,
+                "rank=%d solver_cycles=%llu halo_exchange_rounds=%llu halo_sendrecv_calls=%llu halo_messages_sent=%llu halo_messages_received=%llu halo_bytes_sent=%llu halo_bytes_received=%llu halo_cells_updated=%llu allreduce_calls=%llu allreduce_payload_bytes=%llu\n",
+                rank,
+                stats[0],
+                stats[1],
+                stats[2],
+                stats[3],
+                stats[4],
+                stats[5],
+                stats[6],
+                stats[7],
+                stats[8],
+                stats[9]);
+        }
+
+        fclose(report);
+        free(gathered_stats);
+    }
+}
+
+
 void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, int* start){
     int n = g_processus->n;
     int m = g_processus->m;
@@ -524,6 +635,7 @@ int main(int argc, char** argv){
 
     // Sauvegarde du résultat local de chaque rang pour la visualisation par sous-domaine.
     save_local_result_mpi(domain, g_processus);
+    save_mpi_communication_report(domain);
 
     // Dans le cas où on veut tester dans les communications, chaque processus sauvegarde ses résultats dans un fichier différent
     #if TEST_MODE

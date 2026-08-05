@@ -34,6 +34,18 @@ typedef struct{
     int bottom_ghost;   // Nombre de lignes de recouvrement en bas
     int up_rank;    // Rang du voisin du dessus
     int down_rank;  // Rang du voisin du dessous
+
+    // Statistiques de communication du solveur MPI
+    unsigned long long solver_cycles;
+    unsigned long long halo_exchange_rounds;
+    unsigned long long halo_sendrecv_calls;
+    unsigned long long halo_messages_sent;
+    unsigned long long halo_messages_received;
+    unsigned long long halo_bytes_sent;
+    unsigned long long halo_bytes_received;
+    unsigned long long halo_cells_updated;
+    unsigned long long allreduce_calls;
+    unsigned long long allreduce_payload_bytes;
 } MPIDomain;
 
 

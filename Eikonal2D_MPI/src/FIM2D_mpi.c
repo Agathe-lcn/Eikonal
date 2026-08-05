@@ -208,6 +208,16 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->n_overlap = domain->i_end_overlap - domain->i_start_overlap + 1;
     domain->up_rank = up_rank;
     domain->down_rank = down_rank;
+    domain->solver_cycles = 0;
+    domain->halo_exchange_rounds = 0;
+    domain->halo_sendrecv_calls = 0;
+    domain->halo_messages_sent = 0;
+    domain->halo_messages_received = 0;
+    domain->halo_bytes_sent = 0;
+    domain->halo_bytes_received = 0;
+    domain->halo_cells_updated = 0;
+    domain->allreduce_calls = 0;
+    domain->allreduce_payload_bytes = 0;
 
     if (domain->i_start_overlap < 0 || domain->i_end_overlap >= n || domain->n_overlap < domain->n_owned){
         if (rank == 0){
@@ -253,6 +263,8 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
     int overlap = domain->overlap;
     int any_change = 0;
 
+    domain->halo_exchange_rounds++;
+
     // TEST
     //printf("[rank %d] exchange_overlap : m=%d overlap=%d buffer_size=%d n_overlap=%d\n", domain->rank, m, overlap, overlap * m, domain->n_overlap);
     //fflush(stdout);
@@ -274,6 +286,11 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         send_up = (double*)malloc(overlap * m * sizeof(double));
         recv_up = (double*)malloc(overlap * m * sizeof(double));
         memcpy(send_up, g_processus->T + domain->top_ghost*m, overlap * m * sizeof(double));
+        domain->halo_sendrecv_calls++;
+        domain->halo_messages_sent++;
+        domain->halo_messages_received++;
+        domain->halo_bytes_sent += (unsigned long long)(overlap * m * sizeof(double));
+        domain->halo_bytes_received += (unsigned long long)(overlap * m * sizeof(double));
 
         // TEST
         //printf("[rank %d] Sendrecv avec up_rank=%d (%d doubles)\n", domain->rank, domain->up_rank, overlap*m);
@@ -290,6 +307,11 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
         recv_down = (double*)malloc(overlap * m * sizeof(double));
         int send_offset = (domain->n_overlap - domain->bottom_ghost - overlap) * m;
         memcpy(send_down, g_processus->T + send_offset, overlap * m * sizeof(double));
+        domain->halo_sendrecv_calls++;
+        domain->halo_messages_sent++;
+        domain->halo_messages_received++;
+        domain->halo_bytes_sent += (unsigned long long)(overlap * m * sizeof(double));
+        domain->halo_bytes_received += (unsigned long long)(overlap * m * sizeof(double));
 
         // TEST
         //printf("[rank %d] Sendrecv avec down_rank=%d (%d doubles)\n", domain->rank, domain->down_rank, overlap*m);
@@ -314,6 +336,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
+                domain->halo_cells_updated++;
 
                 // Test
                 //printf("[rank %d] up: cellule k=%d mise à jour %.4f -> %.4f\n", domain->rank, k, old_T, new_T);
@@ -335,6 +358,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
+                domain->halo_cells_updated++;
 
                 // Test
                 //printf("[rank %d] down: cellule k=%d mise à jour %.4f -> %.4f\n", domain->rank, k, old_T, new_T);
@@ -535,6 +559,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         }
 
         cycle++;
+        domain->solver_cycles = (unsigned long long)cycle;
 
         // Dans le cas où on teste sans communications, on continue tant qu'il y a du travail
         #if TEST_MODE
@@ -562,6 +587,8 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
 
         // Si tous les processus n'ont plus de travail alors on arrête tout
         int continue_global = 0;
+        domain->allreduce_calls++;
+        domain->allreduce_payload_bytes += (unsigned long long)sizeof(int);
         MPI_Allreduce(&continue_local, &continue_global, 1, MPI_INT, MPI_MAX, domain->comm);
 
         // TEST
