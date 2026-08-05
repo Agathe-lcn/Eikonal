@@ -9,6 +9,30 @@
 #define TAG 0
 #define TEST_MODE 0     // 1 pour désactiver les communications et 0 pour les activer
 
+static int is_owned_local_row(const MPIDomain* domain, int i_local){
+    return i_local >= domain->top_ghost && i_local < domain->top_ghost + domain->n_owned;
+}
+
+static void activate_owned_from_changed_cell(const MPIDomain* domain, int* start, int index){
+    int i = index / domain->m;
+    int j = index % domain->m;
+
+    if (is_owned_local_row(domain, i)){
+        start[index] = 1;
+        return;
+    }
+
+    if (i < domain->top_ghost){
+        start[domain->top_ghost * domain->m + j] = 1;
+        return;
+    }
+
+    if (i >= domain->top_ghost + domain->n_owned){
+        int last_owned = domain->top_ghost + domain->n_owned - 1;
+        start[last_owned * domain->m + j] = 1;
+    }
+}
+
 MPIDomain* topology_create(int n, int m, double h, int overlap){
     MPIDomain* domain = (MPIDomain*)malloc(sizeof(MPIDomain));
     if (!domain)
@@ -246,7 +270,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 }
 
 
-void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
+void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n*m;
@@ -301,6 +325,7 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
         int index = list_pop_front(narrow);
         int i = index / m;
         int j = index % m;
+        int is_owned = is_owned_local_row(domain, i);
 
         // TEST
         //printf("[Processus] Iteration %d: traitement de la cellule %d (%d,%d)\n", iterations, index, i, j);
@@ -310,12 +335,12 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
 
         double T_old = g_processus->T[index];
 
-        // Si c'est une source alors on ne la recalcule pas
-        if (T_old != 0.0){
+        // Les lignes fantômes servent de conditions de bord importées: elles ne sont pas recalculées localement.
+        if (is_owned && T_old != 0.0){
             g_processus->T[index] = eikonal_solve_local(g_processus, i, j);
         }
 
-        double diff = fabs(g_processus->T[index] - T_old);
+        double diff = is_owned ? fabs(g_processus->T[index] - T_old) : 0.0;
 
         //TEST
         //printf("[Processus] T_old=%f, T_new=%f, diff=%f\n", T_old, g_processus->T[index], diff);
@@ -337,6 +362,9 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
                 int ni = neighbors[k][0];
                 int nj = neighbors[k][1];
                 if (ni >= 0 && ni < n && nj >= 0 && nj < m){
+                    if (!is_owned_local_row(domain, ni))
+                        continue;
+
                     if (eikonal_grid_is_obstacle(g_processus, ni, nj))
                         continue;
 
@@ -371,24 +399,6 @@ void local_propagate(EikonalGrid* g_processus, const int* start, int overlap, do
         }
     }
 
-    // Les mailles qui ont été atteintes à la profondeur maximale (c'est-à-dire qui sont à la "frontière") sont ajoutées au tableau frontier pour devenir les points de départ de la propagation suivante
-    
-    //TEST
-    //int nb_frontier = 0;
-
-    for (int k=0; k < ncell; k++){
-        if (depth[k] == overlap){
-            frontier[k] = 1;
-
-            // TEST
-            //nb_frontier++;
-        }
-    }
-
-    // TEST
-    //printf("[Processus] %d cellules en frontière (profondeur=%d)\n", nb_frontier, overlap);
-    //printf("[Processus] === FIN local_propagate (%d itérations) ===\n", iterations);
-
     // Nettoyage
     list_free(narrow);
 }
@@ -419,21 +429,25 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         //printf("[Processus %d] Cycle %d - avant local_propagate\n", domain->rank, cycle);
 
         // On fait la propagation sur 'overlap' cellules de distance
-        local_propagate(g_processus, start, domain->overlap, epsilon, depth, frontier);
+        local_propagate(domain, g_processus, start, domain->overlap, epsilon, depth, frontier);
 
         // Communication entre les processus
         int changed = exchange_overlap(domain, g_processus, changed_cells);
         // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
         memset(start, 0, ncell * sizeof(int));
         int continue_local = 0;
+        int frontier_count = 0;
+        int changed_count = 0;
         for (int k = 0; k < ncell; k++){
             if (frontier[k]){
                 start[k] = 1;
                 continue_local = 1;
+                frontier_count++;
             }
             if (changed_cells[k]){
-                start[k] = 1;
+                activate_owned_from_changed_cell(domain, start, k);
                 continue_local = 1;
+                changed_count++;
             }
         }
 
