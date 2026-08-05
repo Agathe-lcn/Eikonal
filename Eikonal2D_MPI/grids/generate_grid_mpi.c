@@ -394,7 +394,7 @@ void save_local_result_mpi(const MPIDomain* domain, const EikonalGrid* g_process
 
 
 void save_mpi_communication_report(const MPIDomain* domain){
-    enum { MPI_STATS_COUNT = 10 };
+    enum { MPI_STATS_COUNT = 11 };
     unsigned long long local_stats[MPI_STATS_COUNT] = {
         domain->solver_cycles,
         domain->halo_exchange_rounds,
@@ -405,7 +405,8 @@ void save_mpi_communication_report(const MPIDomain* domain){
         domain->halo_bytes_received,
         domain->halo_cells_updated,
         domain->allreduce_calls,
-        domain->allreduce_payload_bytes
+        domain->allreduce_payload_bytes,
+        domain->allreduce_skipped_cycles
     };
     unsigned long long* gathered_stats = NULL;
 
@@ -440,6 +441,7 @@ void save_mpi_communication_report(const MPIDomain* domain){
         unsigned long long total_cells_updated = 0;
         unsigned long long total_allreduce_calls = 0;
         unsigned long long total_allreduce_payload_bytes = 0;
+        unsigned long long total_allreduce_skipped_cycles = 0;
 
         fprintf(report, "MPI communication report\n");
         fprintf(report, "grid_n=%d\n", domain->n);
@@ -450,6 +452,7 @@ void save_mpi_communication_report(const MPIDomain* domain){
         fprintf(report, "optim_com_mpi=%d\n", domain->optim_com_mpi);
         fprintf(report, "note=Ce rapport couvre les communications du solveur (Sendrecv d'overlap et Allreduce de convergence). Les broadcasts d'initialisation et les ecritures MPI-IO ne sont pas comptabilises.\n");
         fprintf(report, "note_allreduce=Le volume Allreduce est exprime en charge utile applicative par rang; le trafic reseau reel depend de l'implementation MPI.\n");
+        fprintf(report, "note_allreduce_mode=optim_com_mpi=1 espace les Allreduce de critere d'arret selon une periode commune a tous les rangs; un controle global reste force periodiquement pour garantir un arret correct.\n");
         fprintf(report, "note_halo_mode=optim_com_mpi=0 envoie toute la bande d'overlap a chaque cycle; optim_com_mpi=1 n'envoie que les cellules de frontiere modifiees depuis le dernier echange, avec un petit handshake de comptage.\n\n");
 
         for (int rank = 0; rank < domain->nproc; rank++){
@@ -466,6 +469,7 @@ void save_mpi_communication_report(const MPIDomain* domain){
             total_cells_updated += stats[7];
             total_allreduce_calls += stats[8];
             total_allreduce_payload_bytes += stats[9];
+            total_allreduce_skipped_cycles += stats[10];
         }
 
         fprintf(report, "global_solver_cycles_sum=%llu\n", total_cycles);
@@ -480,6 +484,7 @@ void save_mpi_communication_report(const MPIDomain* domain){
         fprintf(report, "global_halo_cells_updated=%llu\n", total_cells_updated);
         fprintf(report, "global_allreduce_calls=%llu\n", total_allreduce_calls);
         fprintf(report, "global_allreduce_payload_bytes=%llu\n", total_allreduce_payload_bytes);
+        fprintf(report, "global_allreduce_skipped_cycles=%llu\n", total_allreduce_skipped_cycles);
         fprintf(report, "global_total_payload_bytes=%llu\n\n",
             total_bytes_sent + total_bytes_received + total_allreduce_payload_bytes);
 
@@ -487,7 +492,7 @@ void save_mpi_communication_report(const MPIDomain* domain){
         for (int rank = 0; rank < domain->nproc; rank++){
             const unsigned long long* stats = gathered_stats + ((size_t)rank * MPI_STATS_COUNT);
             fprintf(report,
-                "rank=%d solver_cycles=%llu halo_exchange_rounds=%llu halo_sendrecv_calls=%llu halo_messages_sent=%llu halo_messages_received=%llu halo_bytes_sent=%llu halo_bytes_received=%llu halo_cells_updated=%llu allreduce_calls=%llu allreduce_payload_bytes=%llu\n",
+                "rank=%d solver_cycles=%llu halo_exchange_rounds=%llu halo_sendrecv_calls=%llu halo_messages_sent=%llu halo_messages_received=%llu halo_bytes_sent=%llu halo_bytes_received=%llu halo_cells_updated=%llu allreduce_calls=%llu allreduce_payload_bytes=%llu allreduce_skipped_cycles=%llu\n",
                 rank,
                 stats[0],
                 stats[1],
@@ -498,7 +503,8 @@ void save_mpi_communication_report(const MPIDomain* domain){
                 stats[6],
                 stats[7],
                 stats[8],
-                stats[9]);
+                stats[9],
+                stats[10]);
         }
 
         fclose(report);

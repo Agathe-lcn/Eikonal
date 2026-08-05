@@ -48,6 +48,7 @@ typedef struct{
     unsigned long long halo_cells_updated;
     unsigned long long allreduce_calls;
     unsigned long long allreduce_payload_bytes;
+    unsigned long long allreduce_skipped_cycles;
 
     // Cache du dernier halo envoye pour le mode OPTIM_COM_MPI.
     double* last_sent_up_t;

@@ -30,6 +30,14 @@ typedef struct {
     int depth;
 } OptimHaloCell;
 
+static int optimized_stop_check_period(const MPIDomain* domain){
+    if (!domain->optim_com_mpi)
+        return 1;
+    if (domain->overlap < 1)
+        return 1;
+    return domain->overlap;
+}
+
 static int halo_value_is_send_worthy(double current_t, int current_depth, double cached_t, int cached_depth){
     if (current_depth < 0)
         return 0;
@@ -364,6 +372,7 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->halo_cells_updated = 0;
     domain->allreduce_calls = 0;
     domain->allreduce_payload_bytes = 0;
+    domain->allreduce_skipped_cycles = 0;
     domain->last_sent_up_t = NULL;
     domain->last_sent_down_t = NULL;
     domain->last_sent_up_depth = NULL;
@@ -873,6 +882,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     }
 
     int cycle = 0;
+    int stop_check_period = optimized_stop_check_period(domain);
     while(true){
 
         // TEST
@@ -928,6 +938,17 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         // TEST
         //printf("[Processus %d] Arrivé au cycle %d, continue_local = %d\n", domain->rank, cycle, continue_local);
         //fflush(stdout);
+
+        // En mode optimise on espace les Allreduce de critere d'arret avec une periode commune a tous les rangs.
+        // Tous les processus restent ainsi alignes sur les memes cycles collectifs.
+        if (domain->optim_com_mpi && (cycle % stop_check_period) != 0){
+            domain->allreduce_skipped_cycles++;
+            if (cycle >= 5000) {
+                printf("[Processus %d] Arrêt forcé de test à 5000 cycles.\n", domain->rank);
+                break;
+            }
+            continue;
+        }
 
         // Si tous les processus n'ont plus de travail alors on arrête tout
         int continue_global = 0;
