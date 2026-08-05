@@ -181,7 +181,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
             int local_row = domain->top_ghost + offset;
             for (int col = 0; col < m; col++){
                 int idx = offset * m + col;
-                if (cycle == 2000 || cycle == 2001)
+                if (cycle == 0 || cycle == 1)
                     write_exchange_trace(domain, cycle, communication_count, "up", "send",
                                      local_row, col, send_up[idx], 0.0, 0.0, 0);
             }
@@ -201,7 +201,7 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
             int local_row = domain->n_overlap - domain->bottom_ghost - overlap + offset;
             for (int col = 0; col < m; col++){
                 int idx = offset * m + col;
-                if (cycle == 2000 || cycle == 2001)
+                if (cycle == 0 || cycle == 1)
                     write_exchange_trace(domain, cycle, communication_count, "down", "send",
                                      local_row, col, send_down[idx], 0.0, 0.0, 0);
             }
@@ -217,18 +217,18 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
             int global_row = domain->i_start_overlap + local_row;
             double old_T = g_processus->T[k];
             double new_T = recv_up[k];
-            if (cycle == 2000 || cycle == 2001)
+            if (cycle == 0 || cycle == 1)
                 write_exchange_trace(domain, cycle, communication_count, "up", "recv",
                                  local_row, local_col, new_T, old_T, new_T, 0);
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
-                if (cycle == 2000 || cycle == 2001)
+                if (cycle == 0 || cycle == 1)
                     write_exchange_trace(domain, cycle, communication_count, "up", "apply",
                                      local_row, local_col, new_T, old_T, new_T, 1);
             } else {
-                if (cycle == 2000 || cycle == 2001)
+                if (cycle == 0 || cycle == 1)
                     write_exchange_trace(domain, cycle, communication_count, "up", "keep",
                                      local_row, local_col, new_T, old_T, new_T, 0);
             }
@@ -245,18 +245,18 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
             int local_col = k % m;
             double old_T = g_processus->T[k];
             double new_T = recv_down[k - beginning];
-            if (cycle == 2000 || cycle == 2001)
+            if (cycle == 0 || cycle == 1)
                 write_exchange_trace(domain, cycle, communication_count, "down", "recv",
                                  local_row, local_col, new_T, old_T, new_T, 0);
             if (new_T < old_T - EIKONAL_EPS){
                 g_processus->T[k] = new_T;
                 any_change = 1;
                 changed_cells[k] = 1;
-                if (cycle == 2000 || cycle == 2001)
+                if (cycle == 0 || cycle == 1)
                     write_exchange_trace(domain, cycle, communication_count, "down", "apply",
                                      local_row, local_col, new_T, old_T, new_T, 1);
             } else {
-                if (cycle == 2000 || cycle == 2001)
+                if (cycle == 0 || cycle == 1)
                     write_exchange_trace(domain, cycle, communication_count, "down", "keep",
                                      local_row, local_col, new_T, old_T, new_T, 0);
             }
@@ -598,7 +598,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         // On initialise continue_local avant de l'utiliser dans write_cycle_summary
         int continue_local = local_changed;
 
-        if (cycle == 2000 || cycle == 2001){
+        if (cycle == 0 || cycle == 1){
             printf("[rank %d] cycle %d - before communication (local_changed=%d)\n", domain->rank, cycle, local_changed);
             fflush(stdout);
             write_cycle_summary(domain, cycle, communication_count, local_changed, 0, continue_local, 0);
@@ -612,7 +612,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         memset(start, 0, ncell * sizeof(int));
 
         communication_count++;
-        if (cycle == 2000 || cycle == 2001){
+        if (cycle == 0 || cycle == 1){
             printf("[rank %d] cycle %d - after communication %d (changed=%d)\n", domain->rank, cycle, communication_count, changed);
             fflush(stdout);
             write_cycle_summary(domain, cycle, communication_count, local_changed, changed, continue_local, 0);
@@ -661,7 +661,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         int continue_global = 0;
         MPI_Allreduce(&continue_local, &continue_global, 1, MPI_INT, MPI_MAX, domain->comm);
 
-        if (cycle == 2000 || cycle == 2001){
+        if (cycle == 0 || cycle == 1){
             printf("[rank %d] cycle %d - before global decision: local=%d global=%d\n", domain->rank, cycle, continue_local, continue_global);
             fflush(stdout);
             write_debug_trace(domain, cycle, "after_comm", local_changed, changed, continue_local, continue_global, communication_count);
@@ -671,7 +671,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         //printf("[Processus %d] Sortie de Allreduce, continue_global = %d\n", domain->rank, cycle, continue_global);
         //fflush(stdout);
         if (!continue_global){
-            if (cycle == 2000 || cycle == 2001){
+            if (cycle == 0 || cycle == 1){
                 printf("[rank %d] cycle %d - stop because continue_global=0\n", domain->rank, cycle);
                 fflush(stdout);
                 write_debug_trace(domain, cycle, "stop_global", local_changed, changed, continue_local, continue_global, communication_count);
