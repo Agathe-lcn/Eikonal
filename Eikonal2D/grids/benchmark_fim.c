@@ -155,7 +155,7 @@ int main(int argc, char** argv){
     int grid_sizes[] = {50, 200, 500, 1000, 2500, 5000};
     int len_grid_sizes = sizeof(grid_sizes) / sizeof(grid_sizes[0]);
     int num_runs = 10;
-    double max_depth[] = {-1.0, 30.0};
+    double max_depth[] = {-1.0, 10.0};
 
     // Initialiser le fichier de résultats
     FILE* results = fopen("results_fim.txt", "w");
