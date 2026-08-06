@@ -59,7 +59,7 @@ int main(int argc, char** argv){
     save_speed(g, "speed.txt");
 
     // Exécution de la FIM
-    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, -1.0, cfg.max_depth);
+    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, cfg.max_depth);
 
     eikonal_save_matrix(g, "matrix_fim.txt");
 

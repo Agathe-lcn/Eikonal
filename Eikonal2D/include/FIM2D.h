@@ -46,12 +46,6 @@ int list_is_empty(const NodeList* l);
 // Vérifie si un voisin existe et peut être amélioré
 int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon);
 
-// Vérifie si une cellule est dans le rayon
-int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j, int source_tag, double max_radius);
-
-// Compte le nombre de cellules dans le rayon
-int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const int* src_j, int ns, double max_radius);
-
 // Détermine le tag de la source qui a mis à jour la valeur T en (i,j)
 int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, int m);
 
@@ -62,9 +56,8 @@ int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, i
 // src_i est le tableau des indices i des sources
 // src_j est le tableau des indices j des sources
 // ns est le nombre de sources
-// Si max_radius est inférieur ou égal à 0, on parcourt l'intégralité de la grille; sinon, on applique le seuil
 // Si max_depth est >= 0, on limite la propagation à max_depth voisinages 4-connexes depuis les sources.
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius, int max_depth);
+void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, int max_depth);
 
 
 #endif /* FIM_H */

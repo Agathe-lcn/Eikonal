@@ -102,59 +102,6 @@ static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int ind
     }
 }*/
 
-
-int is_in_radius(const int* src_i, const int* src_j, int ns, int i, int j, int source_tag, double max_radius){
-    if (max_radius <= 0.0)
-        return 1;
-
-    double di = (double)(i - src_i[source_tag]);
-    double dj = (double)(j - src_j[source_tag]);
-    double dist = sqrt(di * di + dj * dj);
-    return (dist <= max_radius);
-}
-
-
-int count_cells_in_radius(const EikonalGrid* g, const int* src_i, const int* src_j, int ns, double max_radius) {
-    if (max_radius <= 0.0)
-        return g->n * g->m;
-    
-    int n = g->n;
-    int m = g->m;
-    int count = 0;
-    int radius_cells = (int)ceil(max_radius);
-    
-    int* visited = (int*)calloc(n * m, sizeof(int));
-    if (!visited)
-        return g->n * g->m;
-    
-    for (int s = 0; s < ns; s++) {
-        int i0 = src_i[s];
-        int j0 = src_j[s];
-        
-        for (int di = -radius_cells; di <= radius_cells; di++) {
-            for (int dj = -radius_cells; dj <= radius_cells; dj++) {
-                int i = i0 + di;
-                int j = j0 + dj;
-                
-                if (i >= 0 && i < n && j >= 0 && j < m) {
-                    double dist = sqrt((double)(di * di + dj * dj));
-                    if (dist <= max_radius) {
-                        int index = i * m + j;
-                        if (!visited[index]) {
-                            visited[index] = 1;
-                            count++;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    free(visited);
-    return count;
-}
-
-
 int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, int m){
     int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
     int tag = -1;
@@ -179,187 +126,9 @@ int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, i
 
     return tag;
 }
-/*
-
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius, int max_depth) {
-    if (!g || !src_i || !src_j || ns <= 0)
-        return;
-
-    int n = g->n;
-    int m = g->m;
-    int ncell = n * m;
-    int use_depth_limit = (max_depth >= 0);
-
-    // Alloue et initialise le tag
-    int* source_tag = (int*)malloc(ncell * sizeof(int));
-    int* cell_depth = (int*)malloc(ncell * sizeof(int));
-    if (!source_tag || !cell_depth){
-        printf("Erreur: Impossible d'allouer de la mémoire pour les tags\n");
-        free(source_tag);
-        free(cell_depth);
-        return;
-    }
-    for (int k = 0; k < ncell; k++){
-        source_tag[k] = -1;
-        cell_depth[k] = -1;
-    }
-
-    // Initialisation: définit toutes les mailles à +inf
-    for (int k=0; k < ncell; k++)
-        g->T[k] = EIKONAL_INF;
-
-    // Initialisation des sources
-    for (int s=0; s < ns; s++){
-        int i = src_i[s];
-        int j = src_j[s];
-        if (i >= 0 && i < n && j >= 0 && j < m){
-            int index = i * m + j;
-            g->T[index] = 0.0;
-            source_tag[index] = s;
-        }
-    }
-
-    // Création de la Narrowband
-    NodeList* narrow = list_create(ncell);
-    if (!narrow) {
-        free(source_tag);
-        return;
-    }
-
-    // Ajoute les voisins des sources à la Narrowband
-    for (int s=0; s < ns; s++){
-        int i = src_i[s];
-        int j = src_j[s];
-        if (i < 0 || i >= n || j < 0 || j >= m)
-            continue;
-
-        // Visite des 4 voisins
-        int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
-        for (int k=0; k<4; k++){
-            int ni = neighbors[k][0];
-            int nj = neighbors[k][1];
-
-            if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                int index = ni * m + nj;
-
-                // Vérifie si le voisin se trouve à l'intérieur du cercle de rayon max_seuil et de centre s
-                if (!is_in_radius(src_i, src_j, ns, ni, nj, s, max_radius))
-                    continue;
-
-                if (!list_contains(narrow, index)){
-                    double T_new = eikonal_solve_local(g, ni, nj);
-                    if (T_new < g->T[index] - 1e-12){
-                        g->T[index] = T_new;
-                        source_tag[index] = s;
-                        list_push_back(narrow, index);
-                    }
-                }
-            }
-        }
-    }
 
 
-    int compute_all = (max_radius <= 0.0);
-    int total_cells = 0;
-    int cells_processed = 0;
-
-    // Compte le nombre de cellules dans le rayon
-    if (!compute_all) 
-        total_cells = count_cells_in_radius(g, src_i, src_j, ns, max_radius);
-
-    // Boucle principale
-    while(!list_is_empty(narrow)) {
-        // Enlève le premier élément de la liste
-        int index = list_pop_front(narrow);
-        if (index < 0)
-            continue;
-
-        int i = index / m;
-        int j = index % m;
-
-        // Vérifie le rayon
-        if (!compute_all && !is_in_radius(src_i, src_j, ns, i, j, source_tag[index], max_radius))
-            continue; 
-
-        // Incrémente le compteur
-        if (!compute_all && (g->T[index] > 0 || source_tag[index] < 0)) {
-            cells_processed++;
-        }
-
-        double T_old = g->T[index];
-        double T_new = eikonal_solve_local(g, i, j);
-        double diff = fabs(T_new - T_old);
-
-        if (diff <= epsilon) {
-            // La cellule a convergé: on la fige et ses voisins susceptibles d'être améliorés sont ajoutés à la liste
-            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
-            for (int k=0; k < 4; k++){
-                int ni = neighbors[k][0];
-                int nj = neighbors[k][1];
-                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    int index_neighbor = ni * m + nj;
-
-                    // Vérifie le rayon
-                    if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
-                        continue;
-
-                    // Vérifie si l evoisin peut être amélioré
-                    double T_neighbor_new = eikonal_solve_local(g, ni, nj);
-                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
-                        g->T[index_neighbor] = T_neighbor_new;
-                        source_tag[index_neighbor] = find_tag(g, source_tag, ni, nj, n, m);
-                        if (!list_contains(narrow, index_neighbor))
-                            list_push_back(narrow, index_neighbor);
-                    }
-                }
-            }
-        } else {
-            // La cellule n'a pas convergé: mise à jour de sa valeur
-            g->T[index] = T_new;
-            source_tag[index] = find_tag(g, source_tag, i, j, n, m);
-
-            // La cellule est réinsérée dans la liste (elle sera recalculée)
-            list_push_front(narrow, index);
-
-            // Visite des 4 voisins pour les ajouter s'ils peuvent être améliorés
-            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
-            for (int k=0; k < 4; k++){
-                int ni = neighbors[k][0];
-                int nj = neighbors[k][1];
-                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    int index_neighbor = ni * m + nj;
-
-                    // Vérifie le rayon
-                    if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
-                        continue;
-
-                    // Vérifie si le voisin peut être amélioré
-                    double T_neighbor_new = eikonal_solve_local(g, ni, nj);
-                    if (T_neighbor_new < g->T[index_neighbor] - 1e-12){
-                        g->T[index_neighbor] = T_neighbor_new;
-                        source_tag[index_neighbor] = find_tag(g, source_tag, ni, nj, n, m);
-                        if (!list_contains(narrow, index_neighbor))
-                            list_push_back(narrow, index_neighbor);
-                    }
-                }
-            }
-        }
-
-        // Vérifie les conditions d'arrêt
-        if (!compute_all && cells_processed >= total_cells)
-            break;
-    }
-
-    // Enregistrement des tags
-    eikonal_save_tags(g, source_tag, "source_tags.txt");
-
-    // Nettoyage
-    list_free(narrow);
-    free(source_tag);
-}*/
-
-
-void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, double max_radius, int max_depth) {
+void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, int max_depth) {
     if (!g || !src_i || !src_j || ns <= 0)
         return;
 
@@ -415,8 +184,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                 int neighbor_depth = 1;
 
                 // Vérifie si le voisin se trouve à l'intérieur du cercle de rayon max_seuil et de centre s
-                if (!is_in_radius(src_i, src_j, ns, ni, nj, s, max_radius))
-                    continue;
                 if (use_depth_limit && neighbor_depth > max_depth)
                     continue;
 
@@ -432,13 +199,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         }
     }
 
-    int compute_all = (max_radius <= 0.0);
-    int total_cells = 0;
-    int cells_processed = 0;
-
-    // Compte le nombre de mailles dans le rayon
-    if (!compute_all) 
-        total_cells = count_cells_in_radius(g, src_i, src_j, ns, max_radius);
 
     // Boucle principale
     while(!list_is_empty(narrow)) {
@@ -452,15 +212,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
         if (use_depth_limit && (cell_depth[index] < 0 || cell_depth[index] > max_depth))
             continue;
-
-        // Vérifie le rayon
-        if (!compute_all && (source_tag[index] < 0 || !is_in_radius(src_i, src_j, ns, i, j, source_tag[index], max_radius)))
-            continue; 
-
-        // Incrémente le compteur
-        if (!compute_all && (g->T[index] > 0 || source_tag[index] < 0)) {
-            cells_processed++;
-        }
 
         double T_old = g->T[index];
         g->T[index] = eikonal_solve_local(g, i, j);
@@ -483,8 +234,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                     int neighbor_depth = current_cell_depth + 1;
 
                     // Vérifie le rayon
-                    if (!compute_all && !is_in_radius(src_i, src_j, ns, ni, nj, source_tag[index], max_radius))
-                        continue;
                     if (use_depth_limit && neighbor_depth > max_depth)
                         continue;
 
@@ -505,10 +254,6 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         }
         else
             list_push_front(narrow,index);
-
-        // Vérifie les conditions d'arrêt
-        if (!compute_all && cells_processed >= total_cells)
-            break;
     }
 
     // Enregistrement des tags

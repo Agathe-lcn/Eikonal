@@ -36,7 +36,7 @@ int create_config_file(const char* filename, int n, int m) {
 }
 
 // Execute une FIM et mesure le temps
-double run_fim(const char* config_file, double max_radius){
+double run_fim(const char* config_file){
     // Lecture de la configuration
     Config cfg = read_config(config_file);
 
@@ -91,7 +91,7 @@ double run_fim(const char* config_file, double max_radius){
     save_speed(g, "speed.txt");
 
     clock_t start = clock();
-    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, max_radius, -1);
+    fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, cfg.max_depth);
     clock_t end = clock();
 
     double cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;
@@ -104,7 +104,7 @@ double run_fim(const char* config_file, double max_radius){
 }
 
 // Exécute le benchmark pour une config donnée
-void run_benchmark(int n, int m, double max_radius, int num_runs){
+void run_benchmark(int n, int m, int max_depth, int num_runs){
     char tempo_config[256];
     snprintf(tempo_config, sizeof(tempo_config), "tempo_config_%dx%d.txt", n, m);
 
@@ -119,7 +119,7 @@ void run_benchmark(int n, int m, double max_radius, int num_runs){
 
     // On exécute plusieurs fois la FIM pour pouvoir ensuite faire une moyenne des résultats
     for (int run = 0; run < num_runs; run++){
-        double time = run_fim(tempo_config, max_radius);
+        double time = run_fim(tempo_config);
 
         if (time >= 0.0)
             times[valid_runs++] = time;
@@ -137,7 +137,7 @@ void run_benchmark(int n, int m, double max_radius, int num_runs){
         // On enregistre le temps moyen dans un fichier
         FILE* results = fopen("results_fim.txt", "a");
         if (results){
-            fprintf(results, "%d\t%d\t%.1f\t%.6f\t%d\n", n, m, max_radius, avg, valid_runs);
+            fprintf(results, "%d\t%d\t%d\t%.6f\t%d\n", n, m, max_depth, avg, valid_runs);
             fclose(results);
         }
     }
@@ -155,7 +155,7 @@ int main(int argc, char** argv){
     int grid_sizes[] = {50, 200, 500, 1000, 2500, 5000};
     int len_grid_sizes = sizeof(grid_sizes) / sizeof(grid_sizes[0]);
     int num_runs = 10;
-    double max_radius[] = {-1.0, 30.0};
+    double max_depth[] = {-1.0, 30.0};
 
     // Initialiser le fichier de résultats
     FILE* results = fopen("results_fim.txt", "w");
@@ -163,13 +163,13 @@ int main(int argc, char** argv){
         printf("Erreur: Impossible de créer results_fim.txt\n");
         return 1;
     }
-    fprintf(results, "n\tm\tmax_radius\tavg_time_seconds\tnum_runs\n");
+    fprintf(results, "n\tm\tmax_depth\tavg_time_seconds\tnum_runs\n");
     fclose(results);
 
     // On lance le benchmark
     for (int k = 0; k<2; k++){
         for (int s = 0; s<len_grid_sizes; s++)
-            run_benchmark(grid_sizes[s], grid_sizes[s], max_radius[k], num_runs);
+            run_benchmark(grid_sizes[s], grid_sizes[s], max_depth[k], num_runs);
     }
 
     return 0;
