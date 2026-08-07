@@ -134,22 +134,22 @@ bool validate_config(Config* cfg, const char* n_str, const char* m_str, const ch
 
     // Validation des murs
     for (int w=0; w < cfg->nwalls; w++){
-        if(cfg->wall_c1[w] < 0 || cfg->wall_c1[w] >= cfg->m){
+        if(cfg->wall_c1[w] < 0 || cfg->wall_c1[w] > cfg->m){
             printf("Erreur: Coordonnée c1 du mur %d hors limites.\n",w);
             return false;
         }
 
-        if (cfg->wall_c2[w] < 0 || cfg->wall_c2[w] >= cfg->m){
+        if (cfg->wall_c2[w] < 0 || cfg->wall_c2[w] > cfg->m){
             printf("Erreur: Coordonnée c2 du mur %d hors limites.\n",w);
             return false;
         }
 
-        if (cfg->wall_r1[w] < 0 || cfg->wall_r1[w] >= cfg->n){
+        if (cfg->wall_r1[w] < 0 || cfg->wall_r1[w] > cfg->n){
             printf("Erreur: Coordonnée r1 du mur %d hors limites.\n",w);
             return false;
         }
 
-        if (cfg->wall_r2[w] < 0 || cfg->wall_r2[w] >= cfg->n){
+        if (cfg->wall_r2[w] < 0 || cfg->wall_r2[w] > cfg->n){
             printf("Erreur: Coordonnée r2 du mur %d hors limites.\n",w);
             return false;
         }
@@ -361,8 +361,8 @@ void add_walls(EikonalGrid* g, Config cfg){
         if (r2 >= cfg.n)
             r2 = cfg.n - 1;
 
-        for (int i=r1; i <= r2; i++){
-            for (int j=c1; j <= c2; j++){
+        for (int i=c1; i <= c2; i++){
+            for (int j=r1; j <= r2; j++){
                 eikonal_grid_set_obstacle(g, i, j);
             }
         }
