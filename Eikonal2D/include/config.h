@@ -28,6 +28,15 @@ typedef struct{
     bool valid;
 } Config;
 
+// Vérifie si une chaine est un entier
+bool is_integer(const char* str);
+
+// Vérifie si une chaîne est un double
+bool is_double(const char* str);
+
+// Validation du fichier de configuration
+bool validate_config(Config* cfg, const char* n_str, const char* m_str, const char* h_str, const char* max_depth_str);
+
 // Lecture du fichier de configuration
 Config read_config(const char* filename);
 
