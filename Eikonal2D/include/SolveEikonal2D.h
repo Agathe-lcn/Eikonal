@@ -18,7 +18,7 @@ typedef struct{
 // Alloue et initialise une grille
 EikonalGrid* eikonal_grid_create(int n, int m, double h);
 
-// Nettoie la mémoire de la grille
+// Libère la mémoire de la grille
 void eikonal_grid_free(EikonalGrid* g);
 
 // Définit la vitesse F (constante) pour l'ensemble de la grille
@@ -48,16 +48,6 @@ int save_speed(const EikonalGrid* g, const char* filename);
 
 // Enregistre les tags associées aux sources les plus proches
 int eikonal_save_tags(const EikonalGrid* g, const int* source_tag, const char* filename);
-
-
-
-// Accès inline T(i,j)
-static inline double eikonal_T(const EikonalGrid* g, int i, int j){
-    if (i < 0 || j < 0 || i >= g->n || j >= g->m)
-        return EIKONAL_INF;
-
-    return g->T[i * g->m + j];
-}
 
 
 #endif /* SOLVEEIKONAL2D_H */
