@@ -8,43 +8,6 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-static int parse_named_int_exact(const char* line, const char* key, int* out_value){
-    size_t key_len = strlen(key);
-    const char* cursor = line;
-    char* end_ptr = NULL;
-    long value;
-
-    while (*cursor == ' ' || *cursor == '\t')
-        cursor++;
-
-    if (strncmp(cursor, key, key_len) != 0)
-        return 0;
-    cursor += key_len;
-
-    while (*cursor == ' ' || *cursor == '\t')
-        cursor++;
-    if (*cursor != '=')
-        return -1;
-    cursor++;
-
-    while (*cursor == ' ' || *cursor == '\t')
-        cursor++;
-    if (*cursor == '\0')
-        return -1;
-
-    value = strtol(cursor, &end_ptr, 10);
-    if (end_ptr == cursor)
-        return -1;
-    while (*end_ptr == ' ' || *end_ptr == '\t')
-        end_ptr++;
-    if (*end_ptr != '\0')
-        return -1;
-
-    *out_value = (int)value;
-    return 1;
-}
-
-
 // Vérifie si une chaîne est un entier
 bool is_integer(const char* str){
     if (str == NULL || *str == '\0')
@@ -101,7 +64,7 @@ bool is_double(const char* str){
 }
 
 // Validation du fichier de configuration
-bool validate_config(Config* cfg, const char* n_str, const char* m_str, const char* h_str){
+bool validate_config(Config* cfg, const char* n_str, const char* m_str, const char* h_str, const char* max_depth_str){
     // n doit être un entier
     if (!is_integer(n_str)){
         printf("Erreur: n doit être un entier.\n");
@@ -117,6 +80,12 @@ bool validate_config(Config* cfg, const char* n_str, const char* m_str, const ch
     // h doit être un double
     if (!is_double(h_str)){
         printf("Erreur: h doit être un double.\n");
+        return false;
+    }
+
+    // max_depth doit être un entier
+    if (!is_integer(max_depth_str)){
+        printf("Erreur: max_depth doit être un entier.\n");
         return false;
     }
 
@@ -140,7 +109,7 @@ bool validate_config(Config* cfg, const char* n_str, const char* m_str, const ch
     }
 
     // max_depth doit être >= 0 quand il est activé, sinon -1 pour désactiver
-    if (cfg->max_depth < -1){
+    if (cfg->max_depth < -1 || (cfg->max_depth > -1 && cfg->max_depth < 0)){
         printf("Erreur: max_depth doit être un entier >= 0, ou -1 pour désactiver la limitation.\n");
         return false;
     }
@@ -236,6 +205,7 @@ Config read_config(const char* filename){
     char n_str[MAX_LINE] = "";
     char m_str[MAX_LINE] = "";
     char h_str[MAX_LINE] = "";
+    char max_depth_str[MAX_LINE] = "";
 
     while (fgets(line, MAX_LINE, file)){
         // On ignore les commentaires et les lignes vides
@@ -259,17 +229,6 @@ Config read_config(const char* filename){
         // Lecture des paramètres n,m et h avec stockage des chaînes
         char tempo[MAX_LINE];
 
-        int parsed = parse_named_int_exact(line, "max_depth", &cfg.max_depth);
-        if (parsed == 1)
-            continue;
-        if (parsed < 0){
-            printf("Erreur: max_depth doit etre un entier strictement formate dans %s.\n", filename);
-            free_config(&cfg);
-            fclose(file);
-            cfg.valid = false;
-            return cfg;
-        }
-
         // Lecture de n
         if (sscanf(line, "n = %s", tempo) == 1){
             strcpy(n_str,tempo);
@@ -288,6 +247,13 @@ Config read_config(const char* filename){
         if (sscanf(line, "h = %s", tempo) == 1){
             strcpy(h_str, tempo);
             cfg.h = atof(tempo);
+            continue;
+        }
+
+        // Lecture de max_depth
+        if (sscanf(line, "max_depth = %s", tempo) == 1){
+            strcpy(max_depth_str, tempo);
+            cfg.max_depth = atof(tempo);
             continue;
         }
 
@@ -356,7 +322,7 @@ Config read_config(const char* filename){
 
     fclose(file);
 
-    if (!validate_config(&cfg, n_str, m_str, h_str)) {
+    if (!validate_config(&cfg, n_str, m_str, h_str, max_depth_str)) {
         cfg.valid = false;
     } else {
         cfg.valid = true;
