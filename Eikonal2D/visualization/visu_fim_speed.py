@@ -2,7 +2,56 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import os
 
-def visualize_fim_F():
+def read_config(config_file):
+    n = None
+    m = None
+    h = 1.0
+    sources_ij = []
+    section = None
+
+    if not os.path.exists(config_file):
+        print(f"Erreur: Fichier {config_file} pas trouvé, h=1 utilisé par défaut")
+        return n, m, h, sources_ij
+
+    with open(config_file, "r") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line == "sources:":
+                section = "sources"
+                continue
+            if line == "walls:":
+                section = "walls"
+                continue
+
+            if section == "sources":
+                parts = line.split()
+                if len(parts) == 2:
+                    try:
+                        sources_ij.append((int(parts[0]), int(parts[1])))
+                    except ValueError:
+                        pass
+                continue
+
+            if "=" not in line:
+                continue
+
+            key, value = (part.strip() for part in line.split("=", 1))
+            if key == "n":
+                n = int(value)
+            elif key == "m":
+                m = int(value)
+            elif key == "h":
+                h = float(value)
+
+    return n, m, h, sources_ij
+
+
+def sources_physical_coordinates(sources_xy, h):
+    return [(x * h, y * h) for (x, y) in sources_xy]
+
+def visualize_fim_F(config_file="config.txt"):
     # Charge la matrice de la FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
@@ -15,17 +64,12 @@ def visualize_fim_F():
         print(f"Error: Unable to load {fim_file}: {e}")
         return
 
-    # Retrouve n, m, and h
-    n,m = matrix.shape
+    # Chargement de n, m, h et des sources dans l'ordre (x, y) du fichier de config
+    n_matrix, m_matrix = matrix.shape
+    n_cfg, m_cfg, h, sources_xy_indices = read_config(config_file)
+    n = n_cfg if n_cfg is not None else n_matrix
+    m = m_cfg if m_cfg is not None else m_matrix
 
-    h = 1   # Valeur par défaut
-    if os.path.exists("config.txt"):
-        with open("config.txt", "r") as f:
-            for line in f:
-                line = line.strip()
-                if "h =" in line:
-                    h = float(line.split("=")[1].strip())
-    
     # Conversion en flottant
     T_fim = np.zeros((n,m))
     for i in range(n):
@@ -47,37 +91,29 @@ def visualize_fim_F():
     except Exception as e:
         print(f"Erreur: Impossible de charger {speed_file}: {e}")
         return
-
-    # Chargement des coordonnées des sources
-    coord_file = "coords_source.txt"
-    sources=[]
-    if os.path.exists(coord_file):
-        try:
-            coords = np.loadtxt(coord_file)
-            if coords.ndim == 1:
-                sources = [coords]
-            else:
-                sources = coords
-        except Exception as e:
-            print(f"Erreur: UImpossible de charger les sources: {e}")
-    else:
-        print(f"Erreur: Fichier {coord_file} pas trouvé")
+ 
+    sources_xy = sources_physical_coordinates(sources_xy_indices, h)
 
 
     # Création de la grille
-    x = np.arange(m) * h
-    y = np.arange(n) * h
+    x = np.arange(n) * h
+    y = np.arange(m) * h
     X, Y = np.meshgrid(x,y)
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
 
     # Figure 1: solution de la FIM
-    im1 = axes[0].pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
-    axes[0].set_title("FIM-carte de distance")
+    im1 = axes[0].pcolormesh(X, Y, T_fim.T, shading='nearest', cmap='viridis')
+    axes[0].set_title("FIM - carte de distance globale")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
-    for (xs, ys) in sources:
-        axes[0].scatter(xs, ys, color='red', s=10, marker='.', edgecolors='red', linewidth=1, label='Source')
+    for (xs, ys) in sources_xy:
+        axes[0].scatter(xs, ys, color='red', s=24, marker='o', label="Source" if len(sources_xy) == 1 else "", edgecolors='white', linewidth=0.6, zorder=3)
+    if len(sources_xy) > 1:
+        axes[0].scatter([], [], color='red', s=24, marker='o', label="Sources")
+
+    if sources_xy:
+        axes[0].legend(loc="upper right")
     axes[0].legend()
     axes[0].axis('equal')
     plt.colorbar(im1, ax=axes[0])
@@ -87,15 +123,20 @@ def visualize_fim_F():
     T_max = np.nanmax(T_fim)
     nb_contours = 15
     levels = np.linspace(T_min, T_max, nb_contours)
-    axes[0].contour(X, Y, T_fim, levels, colors = 'white', linewidths=0.8, alpha=0.7)
+    axes[0].contour(X, Y, T_fim.T, levels, colors = 'white', linewidths=0.8, alpha=0.7)
 
     # Figure 2: Vitesse F
-    im2 = axes[1].pcolormesh(X, Y, F, shading='nearest', cmap='viridis')
+    im2 = axes[1].pcolormesh(X, Y, F.T, shading='nearest', cmap='viridis')
     axes[1].set_title("Vitesse F")
     axes[1].set_xlabel("X")
     axes[1].set_ylabel("Y")
-    for (xs, ys) in sources:
-        axes[1].scatter(xs, ys, color='red', s=10, marker='.', edgecolors='red', linewidth=1, label='Source')
+    for (xs, ys) in sources_xy:
+        axes[1].scatter(xs, ys, color='red', s=24, marker='o', label="Source" if len(sources_xy) == 1 else "", edgecolors='white', linewidth=0.6, zorder=3)
+    if len(sources_xy) > 1:
+        axes[1].scatter([], [], color='red', s=24, marker='o', label="Sources")
+
+    if sources_xy:
+        axes[1].legend(loc="upper right")
     axes[1].legend()
     axes[1].axis('equal')
     plt.colorbar(im2, ax=axes[1])

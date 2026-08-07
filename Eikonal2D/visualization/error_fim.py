@@ -73,7 +73,7 @@ def compute_error():
 
     # Figure 1: solution de la FIM
     im1 = axes[0].pcolormesh(X, Y, T_fim, shading='nearest', cmap='viridis')
-    axes[0].set_title("FIM-carte des distances")
+    axes[0].set_title("FIM - carte des distances globale")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
     # Ajout des isocontours
@@ -84,23 +84,23 @@ def compute_error():
     axes[0].contour(X, Y, T_fim, levels, colors = 'white', linewidths=0.8, alpha=0.7)
     # Affiche toutes les sources
     for (x_src, y_src) in sources:
-        axes[0].scatter(x_src, y_src, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "")
+        axes[0].scatter(x_src, y_src, color='red', s=24, marker='o', label="Source" if len(sources) == 1 else "", edgecolors='white', linewidth=0.6, zorder=3)
     if len(sources) > 1:
-        axes[0].scatter([], [], color='red', s=10, marker='.', label="Sources")
+        axes[0].scatter([], [], color='red', s=24, marker='o', label="Sources")
     axes[0].legend()
     axes[0].axis('equal')
     plt.colorbar(im1, ax=axes[0])
 
     # Figure 2: Erreur | T_euclid - T_fim |
     im2 = axes[1].pcolormesh(X, Y, error, shading='nearest', cmap='hot')
-    axes[1].set_title("FIM-erreur")
+    axes[1].set_title("FIM - erreur")
     axes[1].set_xlabel("X")
     axes[1].set_ylabel("Y")
     # Affiche toutes les sources
     for (x_src, y_src) in sources:
-        axes[1].scatter(x_src, y_src, color='cyan', s=10, marker='.', label="Source" if len(sources) == 1 else "")
+        axes[1].scatter(x_src, y_src, color='cyan', s=15, marker='o', label="Source" if len(sources) == 1 else "")
     if len(sources) > 1:
-        axes[1].scatter([], [], color='cyan', s=10, marker='.', label="Sources")
+        axes[1].scatter([], [], color='cyan', s=24, marker='o', label="Sources")
     axes[1].legend()
     axes[1].axis('equal')
     plt.colorbar(im2, ax=axes[1])
