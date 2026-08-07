@@ -89,18 +89,6 @@ int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double 
 
     return 0;
 }
-/*
-// Ajoute un voisin à la liste s'il n'y est pas déjà
-static void add_neighbor_if_needed(NodeList* list, const EikonalGrid* g, int index, double T_new, Node* current_node, double epsilon){
-    if (index < 0)
-        return;
-
-    if (!list_contains(list, index)){
-        double T_old = g->T[index];
-        if (T_old - T_new > epsilon)
-            list_insert_before(list, index, current_node);
-    }
-}*/
 
 int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, int m){
     int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
@@ -233,7 +221,7 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
                     int index_neighbor = ni * m + nj;
                     int neighbor_depth = current_cell_depth + 1;
 
-                    // Vérifie le rayon
+                    // Vérifie qu'on ne dépasse pas la profondeur maximale
                     if (use_depth_limit && neighbor_depth > max_depth)
                         continue;
 

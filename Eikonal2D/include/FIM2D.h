@@ -1,5 +1,5 @@
-#ifndef FIM_H
-#define FIM_H
+#ifndef FIM2D_H
+#define FIM2D_H
 
 #include "SolveEikonal2D.h"
 
@@ -60,4 +60,4 @@ int find_tag(const EikonalGrid* g, const int* source_tag, int i, int j, int n, i
 void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, double epsilon, int max_depth);
 
 
-#endif /* FIM_H */
+#endif /* FIM2D_H */
