@@ -2,6 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import sys
+from datetime import datetime
+
+# Création d'un dossier avec la date et l'heure actuelle
+def create_output_directory():
+    now = datetime.now()
+    dir_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs(dir_name, exist_ok=True)
+    return dir_name
 
 
 def read_config(config_file):
@@ -53,7 +61,7 @@ def read_config(config_file):
 def sources_physical_coordinates(sources_xy, h):
     return [(x * h, y * h) for (x, y) in sources_xy]
 
-def visualize_fim(config_file="config.txt"):
+def visualize_fim(config_file="config.txt", output_dir=None):
     # Chargement de la matrice FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
@@ -118,13 +126,14 @@ def visualize_fim(config_file="config.txt"):
     fig.colorbar(mesh, ax=ax)
 
     # Enregistrement
-    fig.savefig("visualization_fim.png", dpi=400, bbox_inches="tight")
-    print("Figure enregistrée: visualization_fim.png")
-
+    plt.tight_layout()
+    output_filename = os.path.join(output_dir, "visualization_fim.png")
+    plt.savefig(output_filename, dpi=400, bbox_inches="tight")
     plt.show()
 
 
 
 if __name__ == "__main__":
     config_file = sys.argv[1] if len(sys.argv) > 1 else "config.txt"
-    visualize_fim(config_file)
+    output_dir = create_output_directory()
+    visualize_fim(config_file, output_dir=output_dir)

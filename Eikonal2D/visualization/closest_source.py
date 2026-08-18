@@ -2,7 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import os
+from datetime import datetime
 
+# Création d'un dossier avec la date et l'heure actuelle
+def create_output_directory():
+    now = datetime.now()
+    dir_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs(dir_name, exist_ok=True)
+    return dir_name
 
 def read_config(config_file):
     n = None
@@ -52,7 +59,7 @@ def read_config(config_file):
 def sources_physical_coordinates(sources_xy, h):
     return [(x * h, y * h) for (x, y) in sources_xy]
 
-def visualize_tags(config_file="config.txt"):
+def visualize_tags(config_file="config.txt", output_dir=None):
     # Chargement des tags
     tags_file = "source_tags.txt"
     if not os.path.exists(tags_file):
@@ -140,8 +147,10 @@ def visualize_tags(config_file="config.txt"):
     cbar2.ax.set_yticklabels(['Match', 'Mismatch'])
 
     plt.tight_layout()
-    plt.savefig("tags_comparison.png", dpi=300, bbox_inches="tight")
+    output_filename = os.path.join(output_dir, "tag_comparison.png")
+    plt.savefig(output_filename, dpi=300, bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
-    visualize_tags()
+    output_dir = create_output_directory()
+    visualize_tags(output_dir=output_dir)

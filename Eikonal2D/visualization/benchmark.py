@@ -1,9 +1,18 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import os 
+from datetime import datetime
+
+# Création d'un dossier avec la date et l'heure actuelle
+def create_output_directory():
+    now = datetime.now()
+    dir_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs(dir_name, exist_ok=True)
+    return dir_name
 
 
-def plot_dataset(data, dataset_name, output_filename):
+def plot_dataset(data, dataset_name, output_dir=None):
     # On ne garde que les lignes correspondant à ce dataset
     subset = data[data['dataset'] == dataset_name]
 
@@ -41,19 +50,22 @@ def plot_dataset(data, dataset_name, output_filename):
 
     # Sauvegarde et affichage
     plt.tight_layout()
+    output_filename = os.path.join(output_dir, f'fim_benchmark_{dataset_name}.png')
     plt.savefig(output_filename, dpi=400, bbox_inches="tight")
     plt.show()
 
 
 def plot_benchmark():
+    output_dir = create_output_directory()
+
     # Lecture des données
     data = pd.read_csv('results_fim.txt', comment='#', sep='\t')
 
     # Un graphique pour le scénario en cercle
-    plot_dataset(data, 'circle', 'fim_benchmark_circle.png')
+    plot_dataset(data, 'circle', output_dir)
 
     # Un graphique pour le scénario en ligne
-    plot_dataset(data, 'line', 'fim_benchmark_line.png')
+    plot_dataset(data, 'line', output_dir)
 
 
 if __name__ == "__main__":

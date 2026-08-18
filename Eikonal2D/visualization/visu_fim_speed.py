@@ -1,6 +1,14 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 import os
+from datetime import datetime
+
+# Création d'un dossier avec la date et l'heure actuelle
+def create_output_directory():
+    now = datetime.now()
+    dir_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs(dir_name, exist_ok=True)
+    return dir_name
 
 def read_config(config_file):
     n = None
@@ -51,7 +59,7 @@ def read_config(config_file):
 def sources_physical_coordinates(sources_xy, h):
     return [(x * h, y * h) for (x, y) in sources_xy]
 
-def visualize_fim_F(config_file="config.txt"):
+def visualize_fim_F(config_file="config.txt", output_dir=None):
     # Charge la matrice de la FIM
     fim_file = "matrix_fim.txt"
     if not os.path.exists(fim_file):
@@ -142,9 +150,11 @@ def visualize_fim_F(config_file="config.txt"):
     plt.colorbar(im2, ax=axes[1])
 
     plt.tight_layout()
-    plt.savefig("visu_fim_speed.png", dpi=300, bbox_inches="tight")
+    output_filename = os.path.join(output_dir, "visu_fim_speed.png")
+    plt.savefig(output_filename, dpi=300, bbox_inches="tight")
     plt.show()
 
 
 if __name__ == "__main__":
-    visualize_fim_F()
+    output_dir = create_output_directory()
+    visualize_fim_F(output_dir=output_dir)
