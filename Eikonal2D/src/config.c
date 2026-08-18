@@ -83,8 +83,9 @@ bool validate_config(Config* cfg, const char* n_str, const char* m_str, const ch
         return false;
     }
 
-    // max_depth doit être un entier
-    if (!is_integer(max_depth_str)){
+    // max_depth doit être un entier (s'il a été précisé dans le fichier).
+    // S'il est absent (chaîne vide), on garde la valeur par défaut (-1) déjà fixée dans read_config.
+    if (max_depth_str[0] != '\0' && !is_integer(max_depth_str)){
         printf("Erreur: max_depth doit être un entier.\n");
         return false;
     }
@@ -182,10 +183,11 @@ Config read_config(const char* filename){
 
     char line[MAX_LINE];
     int section = 0;    // 0: aucune, 1: sources, 2: murs
+
     int max_sources = 10000;
     int max_walls = 1000;
 
-    // Allocations
+    // Allocations initiales
     cfg.src_i = (int*)malloc(max_sources * sizeof(int));
     cfg.src_j = (int*)malloc(max_sources * sizeof(int));
     cfg.wall_c1 = (int*)malloc(max_walls * sizeof(int));
@@ -273,7 +275,27 @@ Config read_config(const char* filename){
                     cfg.valid = false;
                     return cfg;
                 }
-                
+
+                // Réallocation dynamique si le maximum est atteint
+                if (cfg.nsources >= max_sources){
+                    max_sources *= 2;
+                    int* new_src_i = (int*)realloc(cfg.src_i, max_sources * sizeof(int));
+                    int* new_src_j = (int*)realloc(cfg.src_j, max_sources * sizeof(int));
+                    if (!new_src_i || !new_src_j){
+                        printf("Erreur: Echec de realloc pour les sources.\n");
+                        free(new_src_i ? NULL : cfg.src_i);
+                        free(new_src_j ? NULL : cfg.src_j);
+                        cfg.src_i = new_src_i ? new_src_i : cfg.src_i;
+                        cfg.src_j = new_src_j ? new_src_j : cfg.src_j;
+                        free_config(&cfg);
+                        fclose(file);
+                        cfg.valid = false;
+                        return cfg;
+                    }
+                    cfg.src_i = new_src_i;
+                    cfg.src_j = new_src_j;
+                }
+
                 cfg.src_i[cfg.nsources] = atoi(i_str);
                 cfg.src_j[cfg.nsources] = atoi(j_str);
                 cfg.nsources++;
@@ -304,7 +326,31 @@ Config read_config(const char* filename){
                     cfg.valid = false;
                     return cfg;
                 }
-                
+
+                // Réallocation dynamique si le maximum est atteint
+                if (cfg.nwalls >= max_walls){
+                    max_walls *= 2;
+                    int* new_wall_c1 = (int*)realloc(cfg.wall_c1, max_walls * sizeof(int));
+                    int* new_wall_c2 = (int*)realloc(cfg.wall_c2, max_walls * sizeof(int));
+                    int* new_wall_r1 = (int*)realloc(cfg.wall_r1, max_walls * sizeof(int));
+                    int* new_wall_r2 = (int*)realloc(cfg.wall_r2, max_walls * sizeof(int));
+                    if (!new_wall_c1 || !new_wall_c2 || !new_wall_r1 || !new_wall_r2){
+                        printf("Erreur: Echec de realloc pour les murs.\n");
+                        cfg.wall_c1 = new_wall_c1 ? new_wall_c1 : cfg.wall_c1;
+                        cfg.wall_c2 = new_wall_c2 ? new_wall_c2 : cfg.wall_c2;
+                        cfg.wall_r1 = new_wall_r1 ? new_wall_r1 : cfg.wall_r1;
+                        cfg.wall_r2 = new_wall_r2 ? new_wall_r2 : cfg.wall_r2;
+                        free_config(&cfg);
+                        fclose(file);
+                        cfg.valid = false;
+                        return cfg;
+                    }
+                    cfg.wall_c1 = new_wall_c1;
+                    cfg.wall_c2 = new_wall_c2;
+                    cfg.wall_r1 = new_wall_r1;
+                    cfg.wall_r2 = new_wall_r2;
+                }
+
                 cfg.wall_c1[cfg.nwalls] = atoi(c1_str);
                 cfg.wall_c2[cfg.nwalls] = atoi(c2_str);
                 cfg.wall_r1[cfg.nwalls] = atoi(r1_str);
