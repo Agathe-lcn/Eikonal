@@ -29,8 +29,6 @@ Compiler et exécuter manuellement un programme spécifique:
 
 ```bash
 make run-generate
-make run-1source
-make run-5sources
 make benchmark
 ```
 
@@ -95,11 +93,11 @@ Par défaut, la vitesse de propagation `F` est constante égale à 1. Pour utili
 
 Pour revenir à une vitesse constante, il suffit d'inverser ces deux étapes: décommenter `eikonal_grid_set_speed_constant(g, 1.0)` et recommenter `set_variable_speed(g, cfg.n, cfg.m)`.
 
-### Rayon maximal (`max_radius`)
+### Profondeur maximale (`max_depth`)
 
-Le paramètre `max_radius` de la fonction `fim_solve` (appelée dans `generate_grid.c`) contrôle la zone parcourue par la FIM autour des sources:
+Le paramètre `max_depth` de la fonction `fim_solve` (appelée dans `generate_grid.c`) contrôle la zone parcourue par la FIM autour des sources:
 
-- **`max_radius` négatif ou nul** : la FIM parcourt toute la grille.
+- **`max_depth` égale à -1** : la FIM parcourt toute la grille.
 - **`max_radius` strictement positif** : la valeur définit un seuil, et seuls les points situés à une distance inférieure à ce seuil des sources sont traités.
 
 ## Visualisation
