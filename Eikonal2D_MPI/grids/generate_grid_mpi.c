@@ -715,7 +715,7 @@ int main(int argc, char** argv){
     // Exécution de la FIM
     fim_solve_mpi(domain, g_processus, &cfg_processus, start, EPSILON, -1);
 
-    // Sauvegarde du résultat local de chaque rang pour la visualisation par sous-domaine.
+    // Sauvegarde du résultat local de chaque processus pour la visualisation par sous-domaine.
     save_local_result_mpi(domain, g_processus);
     save_mpi_communication_report(domain);
 

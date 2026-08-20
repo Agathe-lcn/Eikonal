@@ -7,7 +7,7 @@ GRID_DIR = grids
 BIN_DIR = bin
 SEQ_DIR = ../Eikonal2D
 
-SRC_COMMON = $(SRC_DIR)/FIM2D_mpi.c $(SRC_DIR)/FIM2D_io.c $(SEQ_DIR)/src/SolveEikonal2D.c $(SEQ_DIR)/src/config.c $(SEQ_DIR)/src/FIM2D.c
+SRC_COMMON = $(SRC_DIR)/FIM2D_mpi.c $(SRC_DIR)/FIM2D_io.c $(SEQ_DIR)/src/SolveEikonal2D.c $(SEQ_DIR)/src/FIM2D.c
 
 EXECS = $(BIN_DIR)/generate_grid_mpi
 
