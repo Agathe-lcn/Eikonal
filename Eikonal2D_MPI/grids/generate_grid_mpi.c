@@ -569,7 +569,7 @@ void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_process
     printf("========== FIN initialize_grid_with_sources ==========\n");*/
 }
 
-// 2 paramètres : le premier correspond à l'overlap et le second au fichier de configuration
+
 int main(int argc, char** argv){
     int rank;
 

@@ -112,7 +112,7 @@ def visualize_fim_F(config_file="config.txt", output_dir=None):
 
     # Figure 1: solution de la FIM
     im1 = axes[0].pcolormesh(X, Y, T_fim.T, shading='nearest', cmap='viridis')
-    axes[0].set_title("FIM - carte de distance globale")
+    axes[0].set_title("FIM - carte de temps globale")
     axes[0].set_xlabel("X")
     axes[0].set_ylabel("Y")
     for (xs, ys) in sources_xy:

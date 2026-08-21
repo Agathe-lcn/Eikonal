@@ -42,7 +42,7 @@ def plot_dataset(data, dataset_name, output_dir=None):
     plt.plot(n_with, time_with, 's-', color='red', label=label_with, linewidth=2, markersize=8)
 
     # Mise en forme
-    plt.xlabel('Dimension de la grille (n x n)', fontsize=12)
+    plt.xlabel('Dimension n de la grille (n=m)', fontsize=12)
     plt.ylabel('Temps moyen (secondes)', fontsize=12)
     plt.title(f'Temps de calcul de la FIM en fonction de la taille de la grille ({dataset_name})', fontsize=14)
     plt.grid(True, alpha=0.3)
