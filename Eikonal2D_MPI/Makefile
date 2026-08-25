@@ -7,18 +7,18 @@ GRID_DIR = grids
 BIN_DIR = bin
 SEQ_DIR = ../Eikonal2D
 
-SRC_COMMON = $(SRC_DIR)/FIM2D_mpi.c $(SRC_DIR)/FIM2D_io.c $(SEQ_DIR)/src/SolveEikonal2D.c $(SEQ_DIR)/src/FIM2D.c
+SRC_COMMON = $(SRC_DIR)/FIM2D_mpi.c $(SRC_DIR)/FIM2D_io.c $(SRC_DIR)/config_mpi.c $(SEQ_DIR)/src/SolveEikonal2D.c $(SEQ_DIR)/src/FIM2D.c $(SEQ_DIR)/src/config.c
 
-EXECS = $(BIN_DIR)/generate_grid_mpi
+EXECS = $(BIN_DIR)/generate_grid_mpi $(BIN_DIR)/benchmark_fim_mpi
 
-.PHONY: all dirs clean run-generate
+.PHONY: all dirs clean run-generate benchmark
 
 all: dirs $(EXECS)
 
 dirs:
 	mkdir -p $(BIN_DIR)
 
-# Compilation du programme MPI avec chargement du module
+# Compilation des programmes MPI avec chargement du module
 $(BIN_DIR)/generate_grid_mpi: $(GRID_DIR)/generate_grid_mpi.c $(SRC_COMMON) | dirs
 	module load mpi/openmpi-x86_64 && $(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 

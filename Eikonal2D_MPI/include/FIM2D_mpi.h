@@ -57,8 +57,6 @@ typedef struct{
     int* last_sent_down_depth;
 } MPIDomain;
 
-
-
 typedef struct{
     int n;
     int m;
@@ -86,10 +84,6 @@ typedef struct{
     bool valid;
 }Config2;
 
-
-
-
-
 // Crée la topologie 1D en bandes
 MPIDomain* topology_create(int n, int m, double h, int overlap);
 
@@ -109,5 +103,27 @@ void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* sta
 
 // FIM avec utilisation du MPI
 void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg, int* start, double espilon, int nb_cycles);
+
+
+
+int parse_named_int_exact(const char* line, const char* key, int* out_value);
+
+int parse_named_bool_flag_exact(const char* line, const char* key, int* out_value);
+
+Config2 read_config_mpi(const char* filename);
+
+void free_config_mpi(Config2* cfg);
+
+void add_walls_local(EikonalGrid* g, Config2 cfg, MPIDomain* domain);
+
+int removing_sources_in_walls_local(EikonalGrid* g_processus, Config2* cfg, MPIDomain* domain);
+
+void save_sources_mpi(Config2 cfg, int rank);
+
+void save_local_result_mpi(const MPIDomain* domain, const EikonalGrid* g_processus);
+
+void save_mpi_communication_report(const MPIDomain* domain);
+
+void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, int* start);
 
 #endif /* FIM2D_MPI_H */
