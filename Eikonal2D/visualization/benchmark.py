@@ -59,7 +59,7 @@ def plot_benchmark():
     output_dir = create_output_directory()
 
     # Lecture des données
-    data = pd.read_csv('results_fim.txt', comment='#', sep='\t')
+    data = pd.read_csv('benchmark_seq.txt', comment='#', sep='\t')
 
     # Un graphique pour le scénario en cercle
     plot_dataset(data, 'circle', output_dir)

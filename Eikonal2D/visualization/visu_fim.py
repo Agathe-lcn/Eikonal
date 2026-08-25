@@ -100,7 +100,7 @@ def visualize_fim(config_file="config.txt", output_dir=None):
     # Visualisation
     fig, ax = plt.subplots(figsize=(10, 8))
     mesh = ax.pcolormesh(X, Y, T_fim.T, shading='nearest', cmap='viridis')
-    ax.set_title("FIM - carte de distance globale")
+    ax.set_title("FIM séquentielle - carte de distance globale")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
 

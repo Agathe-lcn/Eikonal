@@ -55,8 +55,6 @@ double run_fim(const char* config_file, int max_depth){
     // Stockage des informations sur les sources
     save_sources(cfg);
 
-    save_speed(g, "speed.txt");
-
     clock_t start = clock();
     fim_solve(g, cfg.src_i, cfg.src_j, cfg.nsources, EPSILON, max_depth);
     clock_t end = clock();
@@ -93,7 +91,7 @@ void run_benchmark(const char* config_file, const char* dataset_name, int size, 
         double avg = sum / valid_runs;
 
         // On enregistre le temps moyen dans un fichier
-        FILE* results = fopen("results_fim.txt", "a");
+        FILE* results = fopen("benchmark_seq.txt", "a");
         if (results){
             fprintf(results, "%s\t%d\t%d\t%.6f\t%d\n", dataset_name, size, max_depth, avg, valid_runs);
             fclose(results);
@@ -122,7 +120,7 @@ int main(int argc, char** argv){
     const char* configs_dir = "../configs/datasets";
 
     // Initialiser le fichier de résultats
-    FILE* results = fopen("results_fim.txt", "w");
+    FILE* results = fopen("benchmark_seq.txt", "w");
     if(!results){
         printf("Erreur: Impossible de créer results_fim.txt\n");
         return 1;
