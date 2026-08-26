@@ -3,14 +3,14 @@ CFLAGS = -O2 -Iinclude -Wall
 LDFLAGS = -lm
 
 SRC_DIR = src
-GRID_DIR = grids
+GRID_DIR = runners
 BIN_DIR = bin
 
 SRC_COMMON = $(SRC_DIR)/FIM2D.c $(SRC_DIR)/SolveEikonal2D.c $(SRC_DIR)/config.c
 
-EXECS = $(BIN_DIR)/generate_grid $(BIN_DIR)/benchmark_fim
+EXECS = $(BIN_DIR)/fim_run $(BIN_DIR)/benchmark_fim
 
-generate: $(BIN_DIR)/generate_grid
+fim: $(BIN_DIR)/fim_run
 benchmark: $(BIN_DIR)/benchmark_fim
 
 .PHONY: all dirs clean run benchmark
@@ -20,18 +20,18 @@ all: dirs $(EXECS)
 dirs:
 	mkdir -p $(BIN_DIR)
 
-$(BIN_DIR)/generate_grid: $(GRID_DIR)/generate_grid.c $(SRC_COMMON) | dirs
+$(BIN_DIR)/fim_run: $(GRID_DIR)/fim_run.c $(SRC_COMMON) | dirs
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(BIN_DIR)/benchmark_fim: $(GRID_DIR)/benchmark_fim.c $(SRC_COMMON) | dirs
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Cible pour exécuter le programme
-run-generate: $(BIN_DIR)/generate_grid
+fim: $(BIN_DIR)/fim_run
 	@if [ -z "$(ARGS)" ]; then \
-		./$(BIN_DIR)/generate_grid config.txt; \
+		./$(BIN_DIR)/fim_run config.txt; \
 	else \
-		./$(BIN_DIR)/generate_grid $(ARGS); \
+		./$(BIN_DIR)/fim_run $(ARGS); \
 	fi
 
 # Exécution du benchmark

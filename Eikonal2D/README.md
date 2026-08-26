@@ -28,7 +28,7 @@ make all
 Compiler et exécuter manuellement un programme spécifique:
 
 ```bash
-make run-generate
+make fim
 make benchmark
 ```
 
@@ -40,19 +40,19 @@ make clean
 
 ## Utilisation
 
-### Génération d'une grille : `generate_grid`
+### Génération d'un maillage et application de la FIM : `fim`
 
 ```bash
-./bin/generate_grid mon_fichier.txt
+./bin/fim_run mon_fichier.txt
 ```
 
 ou
 
 ```bash
-make run-generate ARGS=mon_fichier.txt
+make fim ARGS=mon_fichier.txt
 ```
 
-Si aucun fichier n'est fourni en argument, `generate_grid` cherche automatiquement un fichier nommé `config.txt` dans le dossier courant.
+Si aucun fichier n'est fourni en argument, `fim` cherche automatiquement un fichier nommé `config.txt` dans le dossier courant.
 
 Le fichier de configuration `.txt` doit respecter la structure suivante :
 
@@ -78,10 +78,10 @@ Tous les fichiers générés (grilles, résultats) sont au format `.txt`.
 
 ### Vitesse variable
 
-Par défaut, la vitesse de propagation `F` est constante égale à 1. Pour utiliser une vitesse variable dans `generate_grid.c` :
+Par défaut, la vitesse de propagation `F` est constante égale à 1. Pour utiliser une vitesse variable dans `fim_run.c` :
 
-1. Implémenter la fonction de vitesse souhaitée dans `set_variable_speed` (fichier `grids/generate_grid.c`).
-2. Dans le `main()` de `generate_grid.c` :
+1. Implémenter la fonction de vitesse souhaitée dans `set_variable_speed` (fichier `runners/fim_run.c`).
+2. Dans le `main()` de `fim_run.c` :
    - commenter la ligne :
      ```c
      eikonal_grid_set_speed_constant(g, 1.0);
@@ -95,10 +95,10 @@ Pour revenir à une vitesse constante, il suffit d'inverser ces deux étapes: d�
 
 ### Profondeur maximale (`max_depth`)
 
-Le paramètre `max_depth` de la fonction `fim_solve` (appelée dans `generate_grid.c`) contrôle la zone parcourue par la FIM autour des sources:
+Le paramètre `max_depth` de la fonction `fim_solve` (appelée dans `fim_run.c`) contrôle la zone parcourue par la FIM autour des sources:
 
 - **`max_depth` égale à -1** : la FIM parcourt toute la grille.
-- **`max_radius` strictement positif** : la valeur définit un seuil, et seuls les points situés à une distance inférieure à ce seuil des sources sont traités.
+- **`max_depth` strictement positif** : la valeur définit un seuil, et seuls les points situés à une distance inférieure à ce seuil des sources sont traités.
 
 ## Visualisation
 
