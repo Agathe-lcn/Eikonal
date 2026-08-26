@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <time.h>
 
 // Fonctions pour la liste doublement chaînée
 
@@ -76,6 +77,19 @@ int list_contains(const NodeList* l, int index){
 
 int list_is_empty(const NodeList* l){
     return l->size == 0;
+}
+
+void list_clear(NodeList* l){
+    Node* cur = l->head.next;
+    while (cur != &l->head){
+        Node* next = cur->next;
+        l->index_to_node[cur->index] = NULL;
+        free(cur);
+        cur = next;
+    }
+    l->head.prev = &l->head;
+    l->head.next = &l->head;
+    l->size = 0;
 }
 
 int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon){
@@ -189,7 +203,12 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
 
 
     // Boucle principale
+    clock_t fim_start = clock();
+    int iterations = 0;
+
     while(!list_is_empty(narrow)) {
+        iterations++;
+
         // Enlève le premier élément de la liste
         int index = list_pop_front(narrow);
         if (index < 0)
@@ -243,6 +262,10 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
         else
             list_push_front(narrow,index);
     }
+
+    clock_t fim_end = clock();
+    double fim_time = ((double)(fim_end - fim_start)) / CLOCKS_PER_SEC;
+    printf("FIM: %d iterations, temps de calcul: %.6f s\n", iterations, fim_time);
 
     // Enregistrement des tags
     eikonal_save_tags(g, source_tag, "source_tags.txt");

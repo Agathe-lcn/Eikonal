@@ -1,16 +1,12 @@
-n = 100
-m = 100
-h = 0.05
-max_depth = 10 
+n = 10000
+m = 10000
+h = 0.0001
+max_depth = -1
 
 # une par ligne
 sources:
-15 20
-80 30
-30 80
-50 50
-48 5
-5 48
+5000 5000
+
 
 # un par ligne (colonne_de_départ colonne_de_fin ligne_de_départ ligne_de_fin)
 walls:

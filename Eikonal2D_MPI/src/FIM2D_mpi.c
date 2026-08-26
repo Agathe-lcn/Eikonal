@@ -9,7 +9,7 @@
 #define TAG 0
 #define TEST_MODE 0     // 1 pour désactiver les communications et 0 pour les activer
 
-static int is_owned_local_row(const MPIDomain* domain, int i_local){
+static inline int is_owned_local_row(const MPIDomain* domain, int i_local){
     return i_local >= domain->top_ghost && i_local < domain->top_ghost + domain->n_owned;
 }
 
@@ -29,6 +29,54 @@ typedef struct {
     double value;
     int depth;
 } OptimHaloCell;
+
+FlagList* flaglist_create(int flag_size, int capacity){
+    FlagList* fl = (FlagList*)malloc(sizeof(FlagList));
+    if (!fl)
+        return NULL;
+    fl->flags = (int*)calloc((size_t)flag_size, sizeof(int));
+    fl->indices = (int*)malloc((size_t)capacity * sizeof(int));
+    if (!fl->flags || !fl->indices){
+        free(fl->flags);
+        free(fl->indices);
+        free(fl);
+        return NULL;
+    }
+    fl->count = 0;
+    fl->capacity = capacity;
+    fl->flag_size = flag_size;
+    return fl;
+}
+
+void flaglist_free(FlagList* fl){
+    if (!fl)
+        return;
+    free(fl->flags);
+    free(fl->indices);
+    free(fl);
+}
+
+void flaglist_set(FlagList* fl, int index){
+    if (!fl->flags[index]){
+        fl->flags[index] = 1;
+        fl->indices[fl->count++] = index;
+    }
+}
+
+void flaglist_clear(FlagList* fl){
+    for (int i = 0; i < fl->count; i++)
+        fl->flags[fl->indices[i]] = 0;
+    fl->count = 0;
+}
+
+static inline int depth_get(const int* depth, const int* depth_gen, int cur_gen, int k){
+    return (depth_gen[k] == cur_gen) ? depth[k] : -1;
+}
+
+static inline void depth_set(int* depth, int* depth_gen, int cur_gen, int k, int val){
+    depth[k] = val;
+    depth_gen[k] = cur_gen;
+}
 
 static int optimized_stop_check_period(const MPIDomain* domain){
     if (!domain->optim_com_mpi)
@@ -108,7 +156,7 @@ static int build_sparse_halo_payload(const MPIDomain* domain, const EikonalGrid*
     return send_count;
 }
 
-static int apply_sparse_halo_payload(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth,
+static int apply_sparse_halo_payload(MPIDomain* domain, EikonalGrid* g_processus, FlagList* changed_cells, int* source_depth,
     int base_offset, int row_count, const OptimHaloCell* cells, int recv_count){
     int any_change = 0;
     int band_size = row_count * domain->m;
@@ -133,7 +181,7 @@ static int apply_sparse_halo_payload(MPIDomain* domain, EikonalGrid* g_processus
         if (new_t < old_t - EIKONAL_EPS){
             g_processus->T[target] = new_t;
             source_depth[target] = new_depth;
-            changed_cells[target] = 1;
+            flaglist_set(changed_cells, target);
             any_change = 1;
             domain->halo_cells_updated++;
             continue;
@@ -141,7 +189,7 @@ static int apply_sparse_halo_payload(MPIDomain* domain, EikonalGrid* g_processus
 
         if (fabs(new_t - old_t) <= EIKONAL_EPS && depth_better){
             source_depth[target] = new_depth;
-            changed_cells[target] = 1;
+            flaglist_set(changed_cells, target);
             any_change = 1;
             domain->halo_cells_updated++;
         }
@@ -150,7 +198,7 @@ static int apply_sparse_halo_payload(MPIDomain* domain, EikonalGrid* g_processus
     return any_change;
 }
 
-static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start, int* source_depth, int max_depth, int index){
+static int activate_owned_from_changed_cell(const MPIDomain* domain, FlagList* start, int* source_depth, int max_depth, int index){
     int i = index / domain->m;
     int j = index % domain->m;
     int source_cell_depth = source_depth[index];
@@ -158,7 +206,7 @@ static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start,
     if (is_owned_local_row(domain, i)){
         if (max_depth >= 0 && (source_cell_depth < 0 || source_cell_depth > max_depth))
             return 0;
-        start[index] = 1;
+        flaglist_set(start, index);
         return 1;
     }
 
@@ -171,7 +219,7 @@ static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start,
             return 0;
         if (source_depth[target] < 0 || source_depth[target] > target_depth)
             source_depth[target] = target_depth;
-        start[target] = 1;
+        flaglist_set(start, target);
         return 1;
     }
 
@@ -185,7 +233,7 @@ static int activate_owned_from_changed_cell(const MPIDomain* domain, int* start,
             return 0;
         if (source_depth[target] < 0 || source_depth[target] > target_depth)
             source_depth[target] = target_depth;
-        start[target] = 1;
+        flaglist_set(start, target);
         return 1;
     }
 
@@ -373,6 +421,11 @@ MPIDomain* topology_create(int n, int m, double h, int overlap){
     domain->allreduce_calls = 0;
     domain->allreduce_payload_bytes = 0;
     domain->allreduce_skipped_cycles = 0;
+    domain->time_local_propagate = 0.0;
+    domain->time_exchange_overlap = 0.0;
+    domain->time_start_construction = 0.0;
+    domain->time_allreduce = 0.0;
+    domain->time_solve_total = 0.0;
     domain->last_sent_up_t = NULL;
     domain->last_sent_down_t = NULL;
     domain->last_sent_up_depth = NULL;
@@ -440,7 +493,7 @@ void topology_free(MPIDomain* domain){
 }
 
 
-static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
+static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, FlagList* changed_cells, int* source_depth){
     // Si on veut tester sans les communications, alors on ne fait rien
     #if TEST_MODE
         return 0;
@@ -457,7 +510,7 @@ static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, in
     //fflush(stdout);
 
     // On remet tout le tableau à zéro
-    memset(changed_cells, 0, domain->n_overlap*m*sizeof(int));
+    flaglist_clear(changed_cells);
 
     MPI_Request reqs[4];
 
@@ -535,7 +588,7 @@ static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, in
                 g_processus->T[k] = new_T;
                 source_depth[k] = recv_up_depth[k];
                 any_change = 1;
-                changed_cells[k] = 1;
+                flaglist_set(changed_cells, k);
                 domain->halo_cells_updated++;
 
                 // Test
@@ -560,7 +613,7 @@ static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, in
                 g_processus->T[k] = new_T;
                 source_depth[k] = recv_down_depth[k - beginning];
                 any_change = 1;
-                changed_cells[k] = 1;
+                flaglist_set(changed_cells, k);
                 domain->halo_cells_updated++;
 
                 // Test
@@ -581,13 +634,13 @@ static int exchange_overlap_full(MPIDomain* domain, EikonalGrid* g_processus, in
     return any_change;
 }
 
-static int exchange_overlap_optimized(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
+static int exchange_overlap_optimized(MPIDomain* domain, EikonalGrid* g_processus, FlagList* changed_cells, int* source_depth){
     int any_change = 0;
     int m = domain->m;
     int overlap = domain->overlap;
     int band_size = overlap * m;
 
-    memset(changed_cells, 0, (size_t)domain->n_overlap * m * sizeof(int));
+    flaglist_clear(changed_cells);
     domain->halo_exchange_rounds++;
 
     if (domain->up_rank != MPI_PROC_NULL && domain->top_ghost > 0){
@@ -692,7 +745,7 @@ static int exchange_overlap_optimized(MPIDomain* domain, EikonalGrid* g_processu
     return any_change;
 }
 
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth){
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, FlagList* changed_cells, int* source_depth){
     if (domain->optim_com_mpi)
         return exchange_overlap_optimized(domain, g_processus, changed_cells, source_depth);
 
@@ -700,153 +753,96 @@ int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_c
 }
 
 
-void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier, int* source_depth, int max_depth){
+void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, FlagList* start, int overlap, double epsilon, int* depth, int* depth_gen, int cur_gen, FlagList* frontier, NodeList* narrow, int* source_depth, int max_depth){
     int n = g_processus->n;
     int m = g_processus->m;
-    int ncell = n*m;
 
-    // TEST
-    /*printf("[Processus] === DEBUT local_propagate ===\n");
-    printf("[Processus] overlap=%d, epsilon=%f\n", overlap, epsilon);
-    int nb_start = 0;
-    for (int k = 0; k < ncell; k++) {
-        if (start[k]) nb_start++;
-    }
-    printf("[Processus] start contient %d cellules\n", nb_start);*/
+    flaglist_clear(frontier);
+    list_clear(narrow);
 
-    // Initialisation de depth et frontier
-    for (int k=0; k < ncell; k++){
-        depth[k] = -1;
-        frontier[k] = 0;
+    for (int i = 0; i < start->count; i++){
+        int k = start->indices[i];
+        depth_set(depth, depth_gen, cur_gen, k, 0);
+        list_push_back(narrow, k);
     }
 
-    // Création de la narrow band
-    NodeList* narrow = list_create(ncell);
-
-    // On met les cellules de départ à une profondeur 0
-
-    // TEST
-    //int nb_in_narrow = 0;
-
-    for (int k=0; k < ncell; k++){
-        if (start[k]){
-            depth[k] = 0;
-            list_push_back(narrow,k);
-        }
-
-            // TEST
-            //nb_in_narrow++;
-            //printf("[Processus] Cellule %d ajoutée à narrow (source)\n", k);
-    }
-
-    // TEST
-    /*printf("[Processus] %d cellules dans narrow\n", nb_in_narrow);
-    if (list_is_empty(narrow)) {
-        printf("[Processus] ERREUR: narrow est vide ! Aucune source trouvée.\n");
-        list_free(narrow);
-        return;
-    }
-    int iterations = 0;*/
+    double* T = g_processus->T;
+    double* F = g_processus->F;
+    int top_ghost = domain->top_ghost;
+    int owned_end = domain->top_ghost + domain->n_owned;
 
     while (!list_is_empty(narrow)){
-        // TEST
-        //iterations++;
-
         int index = list_pop_front(narrow);
         int i = index / m;
         int j = index % m;
-        int is_owned = is_owned_local_row(domain, i);
+        int is_owned = (i >= top_ghost && i < owned_end);
         int current_source_depth = source_depth[index];
 
-        // TEST
-        //printf("[Processus] Iteration %d: traitement de la cellule %d (%d,%d)\n", iterations, index, i, j);
-
-        if (eikonal_grid_is_obstacle(g_processus, i, j))
+        if (F[index] <= EIKONAL_EPS)
             continue;
         if (max_depth >= 0 && (current_source_depth < 0 || current_source_depth > max_depth))
             continue;
 
-        double T_old = g_processus->T[index];
+        double T_old = T[index];
 
-        // Les lignes fantômes servent de conditions de bord importées: elles ne sont pas recalculées localement.
         if (is_owned && T_old != 0.0){
-            g_processus->T[index] = eikonal_solve_local(g_processus, i, j);
+            T[index] = eikonal_solve_local(g_processus, i, j);
         }
 
-        double diff = is_owned ? fabs(g_processus->T[index] - T_old) : 0.0;
+        double diff = is_owned ? fabs(T[index] - T_old) : 0.0;
 
-        //TEST
-        //printf("[Processus] T_old=%f, T_new=%f, diff=%f\n", T_old, g_processus->T[index], diff);
-
-        if (diff <= epsilon){   // Convergence
-            // On parcourt les voisins qui sont dans la zone de propagation voulue
-            int current_depth = depth[index];
+        if (diff <= epsilon){
+            int current_depth = depth_get(depth, depth_gen, cur_gen, index);
 
             if (max_depth >= 0 && current_source_depth >= max_depth)
                 continue;
 
-            // Si on a atteint la profondeur max de l'overlap, alors on ne propage plus aux voisins
             if (current_depth >= overlap){
-                frontier[index] = 1;
+                flaglist_set(frontier, index);
                 continue;
             }
 
-            // TEST
-            //printf("[Processus] Convergence! depth_neighbor=%d, overlap=%d\n", depth_neighbor, overlap);
-            int neighbors[4][2] = {{i-1, j}, {i+1, j}, {i, j-1}, {i, j+1}};
+            int ni[4] = {i-1, i+1, i, i};
+            int nj[4] = {j, j, j-1, j+1};
             for (int k=0; k < 4; k++){
-                int ni = neighbors[k][0];
-                int nj = neighbors[k][1];
-                if (ni >= 0 && ni < n && nj >= 0 && nj < m){
-                    if (!is_owned_local_row(domain, ni))
-                        continue;
+                if (ni[k] < 0 || ni[k] >= n || nj[k] < 0 || nj[k] >= m)
+                    continue;
+                if (ni[k] < top_ghost || ni[k] >= owned_end)
+                    continue;
 
-                    int next_source_depth = current_source_depth + 1;
-                    if (max_depth >= 0 && next_source_depth > max_depth)
-                        continue;
+                int next_source_depth = current_source_depth + 1;
+                if (max_depth >= 0 && next_source_depth > max_depth)
+                    continue;
 
-                    if (eikonal_grid_is_obstacle(g_processus, ni, nj))
-                        continue;
+                int index_neighbor = ni[k] * m + nj[k];
+                if (F[index_neighbor] <= EIKONAL_EPS)
+                    continue;
 
-                    int index_neighbor = ni * m + nj;
-                    double T_neighbor_new = eikonal_solve_local(g_processus, ni, nj);
-                    
-                    if (T_neighbor_new < g_processus->T[index_neighbor] - epsilon){
-                        g_processus->T[index_neighbor] = T_neighbor_new;
-                        if (source_depth[index_neighbor] < 0 || source_depth[index_neighbor] > next_source_depth)
-                            source_depth[index_neighbor] = next_source_depth;
+                double T_neighbor_new = eikonal_solve_local(g_processus, ni[k], nj[k]);
 
-                        // TEST
-                        //printf("[Processus] Voisin (%d,%d) mis à jour: %f\n", ni, nj, T_neighbor_new);
+                if (T_neighbor_new < T[index_neighbor] - epsilon){
+                    T[index_neighbor] = T_neighbor_new;
+                    if (source_depth[index_neighbor] < 0 || source_depth[index_neighbor] > next_source_depth)
+                        source_depth[index_neighbor] = next_source_depth;
 
-                        // On met à jour la profondeur du voisin
-                        if (depth[index_neighbor] < 0 || depth[index_neighbor] > current_depth +1)
-                            depth[index_neighbor] = current_depth + 1;
+                    int neighbor_depth = depth_get(depth, depth_gen, cur_gen, index_neighbor);
+                    if (neighbor_depth < 0 || neighbor_depth > current_depth + 1)
+                        depth_set(depth, depth_gen, cur_gen, index_neighbor, current_depth + 1);
 
-                        if (!list_contains(narrow, index_neighbor)){
-                            list_push_back(narrow, index_neighbor);
-
-                            // TEST
-                            //printf("[Processus] Voisin ajouté à narrow\n");
-                        }
+                    if (!list_contains(narrow, index_neighbor)){
+                        list_push_back(narrow, index_neighbor);
                     }
                 }
             }
         }
         else{
             list_push_front(narrow, index);
-
-            // TEST
-            //printf("[Processus] Pas de convergence, remis en tête de narrow\n");
         }
     }
-
-    // Nettoyage
-    list_free(narrow);
 }
 
 
-void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, int* start, double epsilon, int nb_cycles){
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_processus, FlagList* start, double epsilon, int nb_cycles){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n * m;
@@ -861,56 +857,69 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
     }
     printf("[Processus %d] start contient %d cellules marquées au début\n", domain->rank, nb_start_init);*/
  
-    int* frontier = (int*)malloc(ncell * sizeof(int));
     int* depth = (int*)malloc(ncell * sizeof(int));
-    int* changed_cells = (int*)calloc(domain->n_overlap * domain->m, sizeof(int));
+    int* depth_gen = (int*)calloc(ncell, sizeof(int));
+    FlagList* frontier = flaglist_create(ncell, ncell);
+    FlagList* changed_cells = flaglist_create(domain->n_overlap * domain->m, domain->n_overlap * domain->m);
+    NodeList* narrow = list_create(ncell);
     int* source_depth = (int*)malloc(ncell * sizeof(int));
 
-    if (!frontier || !depth || !changed_cells || !source_depth){
+    if (!frontier || !depth || !depth_gen || !changed_cells || !narrow || !source_depth){
         printf("Erreur [rang %d]: impossible d'allouer les tableaux de travail MPI.\n", domain->rank);
-        free(frontier);
+        flaglist_free(frontier);
         free(depth);
-        free(changed_cells);
+        free(depth_gen);
+        flaglist_free(changed_cells);
+        list_free(narrow);
         free(source_depth);
         return;
     }
 
     for (int k = 0; k < ncell; k++){
         source_depth[k] = -1;
-        if (start[k] && g_processus->T[k] == 0.0)
+    }
+    for (int i = 0; i < start->count; i++){
+        int k = start->indices[i];
+        if (g_processus->T[k] == 0.0)
             source_depth[k] = 0;
     }
 
     int cycle = 0;
+    int cur_gen = 0;
     int stop_check_period = optimized_stop_check_period(domain);
+    double t_solve_start = MPI_Wtime();
+    double t_phase;
     while(true){
 
         // TEST
         //printf("[Processus %d] Cycle %d - avant local_propagate\n", domain->rank, cycle);
 
         // On fait la propagation sur 'overlap' cellules de distance
-        local_propagate(domain, g_processus, start, domain->overlap, epsilon, depth, frontier, source_depth, max_depth);
+        t_phase = MPI_Wtime();
+        cur_gen++;
+        local_propagate(domain, g_processus, start, domain->overlap, epsilon, depth, depth_gen, cur_gen, frontier, narrow, source_depth, max_depth);
+        domain->time_local_propagate += MPI_Wtime() - t_phase;
 
         // Communication entre les processus
+        t_phase = MPI_Wtime();
         int changed = exchange_overlap(domain, g_processus, changed_cells, source_depth);
+        domain->time_exchange_overlap += MPI_Wtime() - t_phase;
         // Les mailles de départ du prochain cycle sont celles sur lequelles on s'est arrêté au cycle précédent et les mailles qui ont été modifiées pendant la communication
-        memset(start, 0, ncell * sizeof(int));
+        t_phase = MPI_Wtime();
+        flaglist_clear(start);
         int continue_local = 0;
-        int frontier_count = 0;
-        int changed_count = 0;
-        for (int k = 0; k < ncell; k++){
-            if (frontier[k]){
-                start[k] = 1;
+        for (int i = 0; i < frontier->count; i++){
+            int k = frontier->indices[i];
+            flaglist_set(start, k);
+            continue_local = 1;
+        }
+        for (int i = 0; i < changed_cells->count; i++){
+            int k = changed_cells->indices[i];
+            if (activate_owned_from_changed_cell(domain, start, source_depth, max_depth, k)){
                 continue_local = 1;
-                frontier_count++;
-            }
-            if (changed_cells[k]){
-                if (activate_owned_from_changed_cell(domain, start, source_depth, max_depth, k)){
-                    continue_local = 1;
-                    changed_count++;
-                }
             }
         }
+        domain->time_start_construction += MPI_Wtime() - t_phase;
 
         cycle++;
         domain->solver_cycles = (unsigned long long)cycle;
@@ -954,7 +963,9 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         int continue_global = 0;
         domain->allreduce_calls++;
         domain->allreduce_payload_bytes += (unsigned long long)sizeof(int);
+        t_phase = MPI_Wtime();
         MPI_Allreduce(&continue_local, &continue_global, 1, MPI_INT, MPI_MAX, domain->comm);
+        domain->time_allreduce += MPI_Wtime() - t_phase;
 
         // TEST
         //printf("[Processus %d] Sortie de Allreduce, continue_global = %d\n", domain->rank, cycle, continue_global);
@@ -969,12 +980,16 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         }
     }
 
+    domain->time_solve_total = MPI_Wtime() - t_solve_start;
+
     //TEST
     //printf("[Processus %d] FIN fim_solve_mpi après %d cycles\n", domain->rank, cycle);
     //printf("========== FIN fim_solve_mpi ==========\n");
 
-    free(frontier);
+    flaglist_free(frontier);
     free(depth);
-    free(changed_cells);
+    free(depth_gen);
+    flaglist_free(changed_cells);
+    list_free(narrow);
     free(source_depth);
 }

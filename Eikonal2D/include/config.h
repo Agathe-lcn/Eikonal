@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-#define EPSILON 1e-12
+#define EPSILON 1e-5
 #define MAX_LINE 1024
 
 // Structure de configuration

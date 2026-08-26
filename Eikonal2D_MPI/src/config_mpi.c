@@ -8,7 +8,7 @@
 #include <mpi.h>
 #include <limits.h>
 
-#define EPSILON 1e-12
+#define EPSILON 1e-5
 #define MAX_LINE 1024
 
 
@@ -513,7 +513,82 @@ void save_mpi_communication_report(const MPIDomain* domain){
 }
 
 
-void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, int* start){
+void save_mpi_profiling_report(const MPIDomain* domain){
+    enum { PROF_STATS_COUNT = 5 };
+    double local_stats[PROF_STATS_COUNT] = {
+        domain->time_local_propagate,
+        domain->time_exchange_overlap,
+        domain->time_start_construction,
+        domain->time_allreduce,
+        domain->time_solve_total
+    };
+    double* gathered_stats = NULL;
+
+    if (domain->rank == 0){
+        gathered_stats = (double*)malloc((size_t)domain->nproc * PROF_STATS_COUNT * sizeof(double));
+        if (!gathered_stats){
+            printf("[Processus %d] Erreur: impossible d'allouer le rapport de profiling\n", domain->rank);
+            return;
+        }
+    }
+
+    MPI_Gather(local_stats, PROF_STATS_COUNT, MPI_DOUBLE,
+        gathered_stats, PROF_STATS_COUNT, MPI_DOUBLE,
+        0, domain->comm);
+
+    if (domain->rank == 0){
+        FILE* report = fopen("mpi_profiling_report.txt", "w");
+        if (!report){
+            printf("[Processus %d] Erreur: impossible de creer mpi_profiling_report.txt\n", domain->rank);
+            free(gathered_stats);
+            return;
+        }
+
+        fprintf(report, "MPI profiling report (timers MPI_Wtime)\n");
+        fprintf(report, "grid_n=%d\n", domain->n);
+        fprintf(report, "grid_m=%d\n", domain->m);
+        fprintf(report, "nproc=%d\n", domain->nproc);
+        fprintf(report, "overlap=%d\n", domain->overlap);
+        fprintf(report, "max_depth=%d\n", domain->max_depth);
+        fprintf(report, "optim_com_mpi=%d\n", domain->optim_com_mpi);
+        fprintf(report, "solver_cycles=%llu\n", domain->solver_cycles);
+        fprintf(report, "note=Les temps sont cumules sur tous les cycles de fim_solve_mpi.\n");
+        fprintf(report, "note2=time_solve_total mesure le temps total de la boucle FIM (inclus les phases non decomposees).\n");
+        fprintf(report, "note3=La somme des phases (local_propagate + exchange + start_construction + allreduce) peut etre < time_solve_total a cause des branchements et du code non mesure.\n\n");
+
+        for (int rank = 0; rank < domain->nproc; rank++){
+            const double* stats = gathered_stats + ((size_t)rank * PROF_STATS_COUNT);
+            double other = stats[4] - (stats[0] + stats[1] + stats[2] + stats[3]);
+
+            fprintf(report, "rank=%d\n", rank);
+            fprintf(report, "  time_local_propagate   = %.6f s  (%.1f%%)\n", stats[0], 100.0 * stats[0] / stats[4]);
+            fprintf(report, "  time_exchange_overlap  = %.6f s  (%.1f%%)\n", stats[1], 100.0 * stats[1] / stats[4]);
+            fprintf(report, "  time_start_construction= %.6f s  (%.1f%%)\n", stats[2], 100.0 * stats[2] / stats[4]);
+            fprintf(report, "  time_allreduce         = %.6f s  (%.1f%%)\n", stats[3], 100.0 * stats[3] / stats[4]);
+            fprintf(report, "  time_other             = %.6f s  (%.1f%%)\n", other, 100.0 * other / stats[4]);
+            fprintf(report, "  time_solve_total       = %.6f s  (100%%)\n", stats[4]);
+            fprintf(report, "  avg_per_cycle          = %.6f s\n\n", stats[4] / (double)domain->solver_cycles);
+        }
+
+        fclose(report);
+        free(gathered_stats);
+
+        // Affichage synthese sur stdout
+        printf("\n--- Profiling FIM (rang 0) ---\n");
+        printf("  Cycles:                  %llu\n", domain->solver_cycles);
+        printf("  Temps total FIM:         %.6f s\n", domain->time_solve_total);
+        printf("  local_propagate:         %.6f s  (%.1f%%)\n", domain->time_local_propagate, 100.0 * domain->time_local_propagate / domain->time_solve_total);
+        printf("  exchange_overlap:        %.6f s  (%.1f%%)\n", domain->time_exchange_overlap, 100.0 * domain->time_exchange_overlap / domain->time_solve_total);
+        printf("  start_construction:      %.6f s  (%.1f%%)\n", domain->time_start_construction, 100.0 * domain->time_start_construction / domain->time_solve_total);
+        printf("  allreduce:               %.6f s  (%.1f%%)\n", domain->time_allreduce, 100.0 * domain->time_allreduce / domain->time_solve_total);
+        double other = domain->time_solve_total - (domain->time_local_propagate + domain->time_exchange_overlap + domain->time_start_construction + domain->time_allreduce);
+        printf("  autre:                   %.6f s  (%.1f%%)\n", other, 100.0 * other / domain->time_solve_total);
+        printf("  Temps moyen/cycle:       %.6f s\n", domain->time_solve_total / (double)domain->solver_cycles);
+        printf("------------------------------\n");
+    }
+}
+
+void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, FlagList* start){
     int n = g_processus->n;
     int m = g_processus->m;
     int ncell = n * m;
@@ -552,7 +627,7 @@ void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_process
         
         int index = i * m + j;
         g_processus->T[index] = 0.0;
-        start[index] = 1;   // On marque la source comme point de départ
+        flaglist_set(start, index);   // On marque la source comme point de départ
 
         // TEST
         //printf("[Processus %d] Source %d -> index=%d, T=0, start=1\n", domain->rank, s, index);

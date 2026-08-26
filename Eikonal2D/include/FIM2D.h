@@ -43,6 +43,9 @@ int list_contains(const NodeList* l, int index);
 // Test si la liste est vide
 int list_is_empty(const NodeList* l);
 
+// Vide la liste sans liberer index_to_node (reutilisable)
+void list_clear(NodeList* l);
+
 // Vérifie si un voisin existe et peut être amélioré
 int is_neighbor_updatable(const EikonalGrid* g, int index, double T_new, double epsilon);
 

@@ -4,7 +4,7 @@
 #include <float.h>
 
 #define EIKONAL_INF DBL_MAX // Valeur infinie pour les cellules qui n'ont pas encore été atteintes
-#define EIKONAL_EPS 1e-12
+#define EIKONAL_EPS 1e-5
 
 
 typedef struct{

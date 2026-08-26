@@ -50,6 +50,13 @@ typedef struct{
     unsigned long long allreduce_payload_bytes;
     unsigned long long allreduce_skipped_cycles;
 
+    // Profiling: temps cumulés (secondes) mesurés dans fim_solve_mpi
+    double time_local_propagate;
+    double time_exchange_overlap;
+    double time_start_construction;
+    double time_allreduce;
+    double time_solve_total;
+
     // Cache du dernier halo envoye pour le mode OPTIM_COM_MPI.
     double* last_sent_up_t;
     double* last_sent_down_t;
@@ -84,6 +91,19 @@ typedef struct{
     bool valid;
 }Config2;
 
+typedef struct{
+    int* flags;      // Tableau booleen pour deduplication
+    int* indices;    // Liste compacte des indices marques a 1
+    int count;       // Nombre d'entrees dans indices
+    int capacity;    // Capacite allouee de indices
+    int flag_size;   // Taille du tableau flags
+} FlagList;
+
+FlagList* flaglist_create(int flag_size, int capacity);
+void flaglist_free(FlagList* fl);
+void flaglist_set(FlagList* fl, int index);
+void flaglist_clear(FlagList* fl);
+
 // Crée la topologie 1D en bandes
 MPIDomain* topology_create(int n, int m, double h, int overlap);
 
@@ -92,17 +112,17 @@ void topology_free(MPIDomain* domain);
 
 // Echange la bande de recouvrement avec les voisins en haut et en bas, et applique le minimum sur T
 // Retourne 1 si au moins une valeur a été améliorée pour le processus et 0 sinon
-int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, int* changed_cells, int* source_depth);
+int exchange_overlap(MPIDomain* domain, EikonalGrid* g_processus, FlagList* changed_cells, int* source_depth);
 
 // Propagation de l'onde à partir des mailles start sur autant de pixels que la valeur du recouvrement
 // (Par exemple, si on a un recouvrement de 3 pixels alors chaque sous domain MPI propage l'onde sur 3 pixels)
 // depth[k] permet de connaitre la distance entre la maille k et la source
 // frontier[k] vaut 1 si la maille k a été parcourue lors du dernier tour de la FIM (elle deviendra donc une maille de départ lors du prochain appel à local_propagate), 0 sinon
-void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, const int* start, int overlap, double epsilon, int* depth, int* frontier, int* source_depth, int max_depth);
+void local_propagate(MPIDomain* domain, EikonalGrid* g_processus, FlagList* start, int overlap, double epsilon, int* depth, int* depth_gen, int cur_gen, FlagList* frontier, NodeList* narrow, int* source_depth, int max_depth);
 
 
 // FIM avec utilisation du MPI
-void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg, int* start, double espilon, int nb_cycles);
+void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg, FlagList* start, double espilon, int nb_cycles);
 
 
 
@@ -124,6 +144,8 @@ void save_local_result_mpi(const MPIDomain* domain, const EikonalGrid* g_process
 
 void save_mpi_communication_report(const MPIDomain* domain);
 
-void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, int* start);
+void save_mpi_profiling_report(const MPIDomain* domain);
+
+void initialize_grid_with_sources(EikonalGrid* g_processus, Config2* cfg_processus, MPIDomain* domain, FlagList* start);
 
 #endif /* FIM2D_MPI_H */

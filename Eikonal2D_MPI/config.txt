@@ -1,20 +1,15 @@
-n = 100
-m = 100
-h = 0.05
-overlap = 5    
-max_depth = 10 
+n = 10000
+m = 10000
+h = 0.0001
+overlap = 3    
+max_depth = -1 
 # max_depth = -1 pour desactiver ce critère d'arrêt
-OPTIM_COM_MPI = 1
+OPTIM_COM_MPI = 0
 # 0 = désactivé, 1 = activé
 
 # une par ligne
 sources:
-15 20
-80 30
-30 80
-50 50
-48 5
-5 48
+5000 5000
 
 # un par ligne (colonne_de_départ colonne_de_fin ligne_de_départ ligne_de_fin)
 walls:
