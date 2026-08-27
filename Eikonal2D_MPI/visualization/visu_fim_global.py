@@ -106,9 +106,9 @@ def visualize_checkpoint():
 
     # Sources
     for (xs, ys) in sources:
-        ax.scatter(xs, ys, color='red', s=10, marker='.', label="Source" if len(sources) == 1 else "", edgecolors='red', linewidth=1)
+        ax.scatter(xs, ys, color='red', s=24, marker='o', label="Source" if len(sources) == 1 else "", edgecolors='red', linewidth=1)
     if len(sources) > 1:
-        ax.scatter([], [], color='red', s=10, marker='.', label="Sources")
+        ax.scatter([], [], color='red', s=24, marker='o', label="Sources")
     ax.legend()
     ax.set_xlim(0.0, n * h)
     ax.set_ylim(0.0, m * h)

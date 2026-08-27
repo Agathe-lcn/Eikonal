@@ -963,7 +963,7 @@ void fim_solve_mpi(MPIDomain* domain, EikonalGrid* g_processus, Config2* cfg_pro
         if (!continue_global)
             break;
 
-        if (cycle >= 5000) {
+        if (cycle >= 25000) {
             printf("[Processus %d] Arrêt forcé de test à 5000 cycles.\n", domain->rank);
         break;
         }

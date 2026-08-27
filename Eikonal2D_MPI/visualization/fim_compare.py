@@ -106,7 +106,8 @@ X, Y = np.meshgrid(x, y)
 # Calcul de la différence et de l'erreur absolue
 diff = b - a
 abs_diff = np.abs(diff)
-max_abs_diff = abs_diff.max()
+mask = np.isfinite(a) & np.isfinite(b)
+max_abs_diff = np.abs(b[mask] - a[mask]).max(initial=0.0)
 
 # Création du dossier de sortie
 output_dir = create_output_directory()
@@ -117,7 +118,7 @@ fig, ax = plt.subplots(figsize=(7, 6))
 
 # Affichage de l'erreur absolue avec les bonnes échelles X et Y
 bound = max(max_abs_diff, 1e-15)
-im = ax.pcolormesh(X, Y, abs_diff.T, shading='nearest', cmap='hot', vmin=0, vmax=bound)
+im = ax.pcolormesh(X, Y, abs_diff.T, shading='nearest', cmap='plasma', vmin=0, vmax=bound)
 ax.set_title("Comparaison entre le séquentiel et le parallèle\n")
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
