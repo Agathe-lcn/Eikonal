@@ -99,9 +99,9 @@ def compute_error(config_file="config.txt", output_dir=None):
     # Distance euclidienne
     T_euclid = np.zeros((n,m))
     for i in range(n):
-        y = i * h 
+        x = i * h 
         for j in range(m):
-            x = j * h
+            y = j * h
             # Calcule la distance par rapport à chaque source et garde la plus petite
             min_dist = np.inf
             for (xs, ys) in sources_xy:

@@ -166,7 +166,7 @@ int eikonal_save_matrix(const EikonalGrid *g, const char *filename){
             if (v >= EIKONAL_INF)
                 fprintf(f, "inf ");
             else
-                fprintf(f, "%.10g",v);
+                fprintf(f, "%.17g",v);
             if (j < g->m - 1)
                 fprintf(f, " ");
         }

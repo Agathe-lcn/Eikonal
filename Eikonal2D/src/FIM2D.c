@@ -202,7 +202,8 @@ void fim_solve(EikonalGrid* g, const int* src_i, const int* src_j, int ns, doubl
             continue;
 
         double T_old = g->T[index];
-        g->T[index] = eikonal_solve_local(g, i, j);
+        if (T_old != 0.0)
+            g->T[index] = eikonal_solve_local(g, i, j);
         double diff = fabs(g->T[index] - T_old);
         source_tag[index] = find_tag(g, source_tag, i, j, n, m);
 
