@@ -3,7 +3,14 @@ import matplotlib.pyplot as plt
 import os
 import glob
 import re
+from datetime import datetime
 
+# Création d'un dossier avec la date et l'heure actuelle
+def create_output_directory():
+    now = datetime.now()
+    dir_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs(dir_name, exist_ok=True)
+    return dir_name
 
 def read_config_values():
     # Chargement de n, m, h et des sources dans l'ordre (x, y) du fichier de config
@@ -170,7 +177,7 @@ def draw_overlap_bands(ax, meta):
     ax.text(x_owned_min + 0.02 * max(h, x_overlap_max - x_overlap_min), label_y, "owned", color="red", fontsize=8, ha="left")
 
 
-def visualize_rank_payload(payload, all_sources, color_limits):
+def visualize_rank_payload(payload, all_sources, color_limits, output_dir=None):
     rank = payload["rank"]
     meta = payload["meta"]
     matrix = payload["matrix"]
@@ -214,12 +221,12 @@ def visualize_rank_payload(payload, all_sources, color_limits):
     ax.set_aspect("equal")
     fig.colorbar(mesh, ax=ax)
 
-    outname = f"visualization_fim_rank{rank}.png"
-    fig.savefig(outname, dpi=400, bbox_inches="tight")
-    print(f"Figure enregistrée: {outname}")
+    output_filename = os.path.join(output_dir,f"visualization_fim_mpi_{rank}.png")
+    fig.savefig(output_filename, dpi=400, bbox_inches="tight")
+    print(f"Figure enregistrée: {output_filename}")
 
 
-def visualize_fim_mpi():
+def visualize_fim_mpi(output_dir=None):
     payloads = load_rank_payloads()
     if not payloads:
         print("Erreur: aucun fichier result_rank*.txt trouvé")
@@ -230,10 +237,11 @@ def visualize_fim_mpi():
     color_limits = collect_color_limits(payloads)
 
     for payload in payloads:
-        visualize_rank_payload(payload, all_sources, color_limits)
+        visualize_rank_payload(payload, all_sources, color_limits, output_dir=output_dir)
 
     plt.show()
 
 
 if __name__ == "__main__":
-    visualize_fim_mpi()
+    output_dir = create_output_directory()
+    visualize_fim_mpi(output_dir=output_dir)

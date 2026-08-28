@@ -3,7 +3,14 @@ import matplotlib.pyplot as plt
 import struct
 import os
 import glob
+from datetime import datetime
 
+# Création d'un dossier avec la date et l'heure actuelle
+def create_output_directory():
+    now = datetime.now()
+    dir_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs(dir_name, exist_ok=True)
+    return dir_name
 
 def read_config(config_file="config.txt"):
     n = None
@@ -54,7 +61,7 @@ def sources_physical_coordinates(sources_xy, h):
     return [(x * h, y * h) for (x, y) in sources_xy]
 
 
-def visualize_checkpoint():
+def visualize_checkpoint(output_dir=None):
     # Recherche du fichier checkpoint
     checkpoint_files = glob.glob("*.chkpt")
     if not checkpoint_files:
@@ -115,12 +122,15 @@ def visualize_checkpoint():
     ax.set_aspect('equal')
     fig.colorbar(mesh, ax=ax)
 
+    output_filename = os.path.join(output_dir,"visualization_fim_mpi.png")
+
     # Enregistrement
-    fig.savefig("visualization_fim_mpi.png", dpi=400, bbox_inches="tight")
-    print("Figure enregistrée: visualization_fim_mpi.png")
+    fig.savefig(output_filename, dpi=400, bbox_inches="tight")
+    print(f"Figure enregistrée : {output_filename}")
 
     plt.show()
 
 
 if __name__ == "__main__":
-    visualize_checkpoint()
+    output_dir = create_output_directory()
+    visualize_checkpoint(output_dir=output_dir)
